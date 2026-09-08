@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../../api'
 import { btnGold, btnGhost, formatPHP, input, label, StatusBadge } from '../../components/ui'
+import { ITEM_PHOTO_OPTIONS } from '../../images'
 
 const categories = [
   ['', 'All Categories'],
@@ -279,6 +280,53 @@ function ItemForm({ initial, onClose, onSaved }) {
         <div className="sm:col-span-2">
           <label className={label}>Notes</label>
           <textarea rows={2} className={input} value={form.notes} onChange={set('notes')} placeholder="Storage notes, supplier, etc." />
+        </div>
+      </div>
+
+      <div className="sm:col-span-2 rounded-2xl border border-navy-100 bg-navy-50/40 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold tracking-wide text-navy-700 uppercase">
+              Item Photo (shown on the quotation page)
+            </p>
+            <p className="mt-0.5 text-xs text-navy-500">
+              Click a photo below to assign it to this item, so customers can identify it.
+            </p>
+          </div>
+          {form.photo_url ? (
+            <button
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, photo_url: '' }))}
+              className="rounded-full border border-red-200 px-4 py-1.5 text-xs font-semibold text-red-500 transition hover:bg-red-50"
+            >
+              ✕ Remove photo
+            </button>
+          ) : (
+            <span className="text-xs text-navy-400">No photo assigned</span>
+          )}
+        </div>
+
+        {form.photo_url && (
+          <img
+            src={form.photo_url}
+            alt="Selected item photo"
+            className="mt-3 h-28 w-44 rounded-xl border-2 border-gold-500 object-cover shadow"
+          />
+        )}
+
+        <div className="mt-3 grid max-h-56 grid-cols-4 gap-2 overflow-y-auto rounded-xl bg-white p-3 sm:grid-cols-6">
+          {ITEM_PHOTO_OPTIONS.map((src) => (
+            <button
+              key={src}
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, photo_url: src }))}
+              className={`overflow-hidden rounded-lg border-2 transition ${
+                form.photo_url === src ? 'border-gold-500 ring-2 ring-gold-500/40' : 'border-transparent hover:border-navy-300'
+              }`}
+            >
+              <img src={src} alt="" loading="lazy" className="h-14 w-full object-cover" />
+            </button>
+          ))}
         </div>
       </div>
 

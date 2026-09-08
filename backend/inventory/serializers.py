@@ -15,6 +15,6 @@ class ItemSerializer(serializers.ModelSerializer):
             'id', 'name', 'category', 'category_display', 'quantity_on_hand',
             'quantity_in_use', 'quantity_available', 'condition', 'condition_display',
             'color', 'size', 'rental_price', 'low_stock_threshold', 'is_low_stock',
-            'notes', 'created_at', 'updated_at',
+            'photo_url', 'notes', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'quantity_in_use', 'created_at', 'updated_at']

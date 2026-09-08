@@ -260,8 +260,17 @@ export default function Quotation() {
                         </p>
                         <ul className="mt-2 space-y-1">
                           {list.map((it) => (
-                            <li key={it.id} className="flex items-baseline justify-between gap-3 text-sm">
-                              <span className="text-white/85">{it.name}</span>
+                            <li key={it.id} className="flex items-center justify-between gap-3 text-sm">
+                              <span className="flex min-w-0 items-center gap-2">
+                                {it.photo_url ? (
+                                  <img src={it.photo_url} alt="" loading="lazy" className="h-8 w-8 shrink-0 rounded-md border border-white/20 object-cover" />
+                                ) : (
+                                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/10 font-display text-xs font-bold text-gold-300/70">
+                                    {(it.name[0] || '?').toUpperCase()}
+                                  </span>
+                                )}
+                                <span className="truncate text-white/85">{it.name}</span>
+                              </span>
                               <span className="flex-1 border-b border-dotted border-white/20" />
                               <span className="font-semibold text-gold-300">
                                 {Number(it.rental_price) > 0 ? `₱${Number(it.rental_price).toLocaleString('en-PH')}` : '—'}
@@ -472,12 +481,24 @@ function ItemRow({ item, qty, onToggle, onQty }) {
       }`}
     >
       <button type="button" onClick={onToggle} className="flex flex-1 items-center gap-3 text-left">
-        <span
-          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border text-[10px] font-bold text-white transition ${
-            qty > 0 ? 'border-gold-500 bg-gold-500' : 'border-navy-300 bg-white'
-          }`}
-        >
-          {qty > 0 ? '✓' : ''}
+        <span className="relative shrink-0">
+          {item.photo_url ? (
+            <img
+              src={item.photo_url}
+              alt={item.name}
+              loading="lazy"
+              className="h-14 w-14 rounded-lg border border-navy-100 object-cover shadow-sm"
+            />
+          ) : (
+            <span className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-navy-200 bg-white font-display text-xl font-bold text-navy-300">
+              {(item.name[0] || '?').toUpperCase()}
+            </span>
+          )}
+          {qty > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-gold-500 text-[10px] font-bold text-navy-950 shadow">
+              ✓
+            </span>
+          )}
         </span>
         <span>
           <span className="block text-sm font-medium text-navy-900">{item.name}</span>

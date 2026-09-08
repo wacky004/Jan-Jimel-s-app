@@ -34,6 +34,7 @@ class Item(models.Model):
     size = models.CharField(max_length=60, blank=True)
     rental_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     low_stock_threshold = models.PositiveIntegerField(default=3)
+    photo_url = models.CharField(max_length=255, blank=True, help_text='Path to the item photo shown on the quotation page.')
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

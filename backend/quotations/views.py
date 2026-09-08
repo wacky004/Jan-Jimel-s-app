@@ -43,6 +43,7 @@ class PublicItemsView(APIView):
                 'rental_price': i.rental_price,
                 'color': i.color,
                 'size': i.size,
+                'photo_url': i.photo_url,
             }
             for i in Item.objects.all()
         ])
