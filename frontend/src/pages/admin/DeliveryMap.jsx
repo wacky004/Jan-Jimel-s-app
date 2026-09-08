@@ -44,6 +44,14 @@ const makeShopIcon = () =>
     iconAnchor: [17, 17],
   })
 
+const makeCountIcon = (count) =>
+  L.divIcon({
+    className: '',
+    html: `<div style="width:34px;height:34px;border-radius:50%;background:#d4af37;border:3px solid #fff;color:#14274d;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.5)">×${count}</div>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+  })
+
 export default function DeliveryMap() {
   const [pins, setPins] = useState([])
   const [shop, setShop] = useState(DEFAULT_SHOP)
@@ -71,6 +79,11 @@ export default function DeliveryMap() {
   const [routeNote, setRouteNote] = useState('')
   const [routeLoading, setRouteLoading] = useState(false)
   const [noLocation, setNoLocation] = useState(false)
+  const [showCustomers, setShowCustomers] = useState(false)
+  const [customers, setCustomers] = useState([])
+  const [customersLoading, setCustomersLoading] = useState(false)
+  const [panelQuery, setPanelQuery] = useState('')
+  const [trendMode, setTrendMode] = useState(false)
   const mapRef = useRef(null)
   const manualModeRef = useRef(false)
   const clickHandlerRef = useRef(() => {})
@@ -201,6 +214,59 @@ export default function DeliveryMap() {
       setCustResults([])
     }
   }
+
+  const openCustomers = async () => {
+    setShowCustomers(true)
+    setPanelQuery('')
+    if (customers.length > 0) return
+    setCustomersLoading(true)
+    try {
+      const { data } = await api.get('/orders/customers/')
+      setCustomers(data)
+    } catch {
+      setCustomers([])
+    } finally {
+      setCustomersLoading(false)
+    }
+  }
+
+  const panelCustomers = useMemo(() => {
+    if (!panelQuery.trim()) return customers
+    const q = panelQuery.toLowerCase()
+    return customers.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.phone || '').toLowerCase().includes(q) ||
+        (c.address || '').toLowerCase().includes(q),
+    )
+  }, [customers, panelQuery])
+
+  const customerBadges = useMemo(() => {
+    if (!trendMode) return []
+    const groups = new Map()
+    for (const p of filtered) {
+      if (!p.lat || !p.lng) continue
+      const key = (p.customer_name || 'Unknown').toLowerCase()
+      const g = groups.get(key)
+      if (!g) groups.set(key, { name: p.customer_name || 'Unknown', pins: [p] })
+      else g.pins.push(p)
+    }
+    return [...groups.values()].map((g) => {
+      const latest = g.pins.reduce((a, b) =>
+        new Date(a.created_at || 0) > new Date(b.created_at || 0) ? a : b,
+      )
+      const distinct = new Set(g.pins.map((p) => `${Number(p.lat).toFixed(4)},${Number(p.lng).toFixed(4)}`)).size
+      return {
+        name: g.name,
+        lat: Number(latest.lat),
+        lng: Number(latest.lng),
+        count: g.pins.length,
+        locations: distinct,
+        address: latest.address,
+        created_at: latest.created_at,
+      }
+    })
+  }, [filtered, trendMode])
 
   const clearCustomer = () => {
     setCustomer(null)
@@ -516,6 +582,36 @@ export default function DeliveryMap() {
             </button>
           </div>
 
+          <div>
+            <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-600 uppercase">
+              👥 Customers
+            </p>
+            <button
+              type="button"
+              onClick={openCustomers}
+              className="rounded-full bg-navy-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-700"
+            >
+              All customers
+            </button>
+          </div>
+
+          <div>
+            <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-600 uppercase">
+              📍 Trend
+            </p>
+            <button
+              type="button"
+              onClick={() => setTrendMode(!trendMode)}
+              className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                trendMode
+                  ? 'bg-gold-500 text-navy-950 shadow-lg'
+                  : 'border border-navy-200 bg-white text-navy-800 hover:border-gold-500'
+              }`}
+            >
+              {trendMode ? '✔ Trend ON — badges per customer' : 'Pinned customers'}
+            </button>
+          </div>
+
           <select className={`${input} w-auto`} value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">All statuses</option>
             {Object.keys(statusColors).map((v) => (
@@ -574,61 +670,100 @@ export default function DeliveryMap() {
             </Marker>
           )}
 
+          {/* Trend badges per customer */}
+          {trendMode &&
+            customerBadges.map((b) => (
+              <Marker
+                key={`badge-${b.name.toLowerCase()}`}
+                position={[b.lat, b.lng]}
+                icon={makeCountIcon(b.count)}
+                interactive={!manualMode}
+                eventHandlers={{
+                  click: () =>
+                    selectCustomer({
+                      name: b.name,
+                      phone: '',
+                      email: '',
+                      address: b.address,
+                      lat: b.lat,
+                      lng: b.lng,
+                      pin_count: b.count,
+                      created_at: b.created_at,
+                    }),
+                }}
+              >
+                <Popup>
+                  <div className="min-w-[200px]">
+                    <p className="font-semibold text-navy-900">{b.name}</p>
+                    <p className="mt-1 text-xs text-navy-600">
+                      {b.count} pin{b.count === 1 ? '' : 's'}
+                      {b.locations > 1 ? ` · ${b.locations} locations` : ''}
+                    </p>
+                    <p className="mt-1 text-xs text-navy-500">{b.address}</p>
+                  </div>
+                </Popup>
+                <Tooltip direction="top" offset={[0, -18]}>
+                  {b.name} — {b.count} pins
+                </Tooltip>
+              </Marker>
+            ))}
+
           {/* Delivery pins */}
-          {filtered.map(
-            (p) =>
-              p.lat && p.lng && (
-                <Marker
-                  key={`${p.source}-${p.id}`}
-                  position={[p.lat, p.lng]}
-                  icon={isCustomerPin(p) ? makeHighlightIcon() : makePinIcon(statusColors[p.status] || '#999')}
-                  interactive={!manualMode}
-                >
-                  <Popup>
-                    <div className="min-w-[230px]">
-                      <p className="font-semibold text-navy-900">{p.customer_name}</p>
-                      {p.source === 'order' ? (
-                        <>
-                          <p className="mt-1 text-xs text-navy-600">{p.address}</p>
-                          <p className="mt-1 text-xs text-navy-700">
-                            📞 {p.contact_number || '—'}
-                            {p.email && ` · ✉ ${p.email}`}
-                          </p>
-                          {p.event_type && (
-                            <p className="text-xs text-navy-600">
-                              🎉 {p.event_type}
-                              {p.event_date && ` · ${p.event_date}`} · {formatPHP(p.total_price)}
+          {!trendMode &&
+            filtered.map(
+              (p) =>
+                p.lat && p.lng && (
+                  <Marker
+                    key={`${p.source}-${p.id}`}
+                    position={[p.lat, p.lng]}
+                    icon={isCustomerPin(p) ? makeHighlightIcon() : makePinIcon(statusColors[p.status] || '#999')}
+                    interactive={!manualMode}
+                  >
+                    <Popup>
+                      <div className="min-w-[230px]">
+                        <p className="font-semibold text-navy-900">{p.customer_name}</p>
+                        {p.source === 'order' ? (
+                          <>
+                            <p className="mt-1 text-xs text-navy-600">{p.address}</p>
+                            <p className="mt-1 text-xs text-navy-700">
+                              📞 {p.contact_number || '—'}
+                              {p.email && ` · ✉ ${p.email}`}
                             </p>
-                          )}
-                          <div className="mt-2 flex items-center gap-2">
-                            <StatusBadge status={p.status} />
-                            <span className="text-xs text-navy-500">{formatDateTime(p.delivered_at || p.created_at)}</span>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <p className="mt-1 text-xs text-navy-600">{p.address || 'No address'}</p>
-                          {p.event_date && <p className="text-xs text-navy-600">📅 {p.event_date}</p>}
-                          <div className="mt-2 flex items-center justify-between gap-2">
-                            <StatusBadge status="manual" label="Manual Pin" />
-                            <button
-                              type="button"
-                              onClick={() => deletePin(p.id)}
-                              className="rounded-lg border border-red-200 px-2.5 py-1 text-[11px] font-semibold text-red-500 transition hover:bg-red-50"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </Popup>
-                  <Tooltip direction="top" offset={[0, -18]}>
-                    {p.customer_name}
-                  </Tooltip>
-                </Marker>
-              ),
-          )}
+                            {p.event_type && (
+                              <p className="text-xs text-navy-600">
+                                🎉 {p.event_type}
+                                {p.event_date && ` · ${p.event_date}`} · {formatPHP(p.total_price)}
+                              </p>
+                            )}
+                            <div className="mt-2 flex items-center gap-2">
+                              <StatusBadge status={p.status} />
+                              <span className="text-xs text-navy-500">{formatDateTime(p.delivered_at || p.created_at)}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="mt-1 text-xs text-navy-600">{p.address || 'No address'}</p>
+                            {p.event_date && <p className="text-xs text-navy-600">📅 {p.event_date}</p>}
+                            <div className="mt-2 flex items-center justify-between gap-2">
+                              <StatusBadge status="manual" label="Manual Pin" />
+                              <button
+                                type="button"
+                                onClick={() => deletePin(p.id)}
+                                className="rounded-lg border border-red-200 px-2.5 py-1 text-[11px] font-semibold text-red-500 transition hover:bg-red-50"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </Popup>
+                    <Tooltip direction="top" offset={[0, -18]}>
+                      {p.customer_name}
+                    </Tooltip>
+                  </Marker>
+                ),
+            )}
 
           {/* Route path */}
           {routePath && routePath.length > 1 && (
@@ -825,6 +960,77 @@ export default function DeliveryMap() {
             </div>
           </form>
         </div>
+      )}
+
+      {showCustomers && (
+        <>
+          <div
+            className="fixed inset-0 z-[60] bg-navy-950/40 backdrop-blur-sm"
+            onClick={() => setShowCustomers(false)}
+          />
+          <div className="fixed inset-y-0 right-0 z-[65] flex w-full max-w-sm flex-col bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-navy-100 px-5 py-4">
+              <div>
+                <h3 className="font-display text-lg font-bold text-navy-900">All Customers</h3>
+                <p className="text-xs text-navy-500">
+                  {customers.length} customer{customers.length === 1 ? '' : 's'} — pick one to see
+                  their pin &amp; directions
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCustomers(false)}
+                className="text-navy-500 transition hover:text-navy-900"
+                aria-label="Close"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="border-b border-navy-100 p-3">
+              <input
+                className={input}
+                placeholder="🔍 Filter by name, phone, or address…"
+                value={panelQuery}
+                onChange={(e) => setPanelQuery(e.target.value)}
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {customersLoading ? (
+                <p className="p-5 text-sm text-navy-500">Loading customers…</p>
+              ) : panelCustomers.length === 0 ? (
+                <p className="p-5 text-sm text-navy-500">
+                  {customers.length === 0 ? 'No customers yet.' : 'No customers match your filter.'}
+                </p>
+              ) : (
+                panelCustomers.map((c) => (
+                  <button
+                    key={`${c.source}-${c.order_id || 'pin'}-${c.name}`}
+                    type="button"
+                    onClick={() => {
+                      setShowCustomers(false)
+                      selectCustomer(c)
+                    }}
+                    className="block w-full border-b border-navy-50 px-5 py-3 text-left transition last:border-0 hover:bg-gold-500/10"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-sm font-semibold text-navy-900">{c.name}</p>
+                      <span className="shrink-0 rounded-full bg-gold-500/15 px-2.5 py-0.5 text-[11px] font-bold text-gold-700">
+                        {c.pin_count} 📍
+                      </span>
+                    </div>
+                    <p className="truncate text-xs text-navy-600">
+                      {c.phone || 'no phone'}
+                      {c.email && ` · ${c.email}`}
+                    </p>
+                    <p className="truncate text-xs text-navy-400">{c.address}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </>
       )}
 
       {toast && (

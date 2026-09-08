@@ -111,8 +111,6 @@ class CustomerSearchView(APIView):
 
     def get(self, request):
         search = request.query_params.get('search', '').strip()
-        if not search:
-            return Response([])
 
         results = {}
 
@@ -130,7 +128,12 @@ class CustomerSearchView(APIView):
                 entry['email'] = fields.get('email') or entry['email']
             entry['pin_count'] += 1
 
-        for o in Order.objects.filter(customer_name__icontains=search).order_by('-created_at')[:50]:
+        if search:
+            order_qs = Order.objects.filter(customer_name__icontains=search).order_by('-created_at')[:50]
+        else:
+            order_qs = Order.objects.all().order_by('-created_at')[:200]
+
+        for o in order_qs:
             key = (o.customer_name or '').strip().lower()
             entry = results.get(key)
             if entry is None:
@@ -156,9 +159,12 @@ class CustomerSearchView(APIView):
                      status=o.status, event_type=o.event_type, event_date=o.event_date,
                      address=o.delivery_address, phone=o.contact_number, email=o.email)
 
-        pins_qs = DeliveryPin.objects.filter(label__icontains=search)
-        pins_qs = pins_qs | DeliveryPin.objects.filter(address__icontains=search)
-        for p in pins_qs[:50]:
+        if search:
+            pins_qs = DeliveryPin.objects.filter(label__icontains=search)
+            pins_qs = pins_qs | DeliveryPin.objects.filter(address__icontains=search)
+        else:
+            pins_qs = DeliveryPin.objects.all()
+        for p in pins_qs[:200]:
             name = p.label or p.address
             key = (name or '').strip().lower()
             if not key:
