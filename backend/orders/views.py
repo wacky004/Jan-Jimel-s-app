@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 
 from inventory.models import Item
 
-from .models import DeliveryPin, DeliveryRoute, Order
+from .models import DeliveryPin, DeliveryRoute, Order, ShopSettings
 from .serializers import (
     DeliveryPinSerializer,
     DeliveryRouteSerializer,
@@ -113,30 +113,106 @@ class CustomerSearchView(APIView):
         search = request.query_params.get('search', '').strip()
         if not search:
             return Response([])
-        orders = Order.objects.filter(customer_name__icontains=search).order_by(
-            '-created_at'
-        )[:50]
-        seen = set()
-        customers = []
-        for o in orders:
-            key = (o.customer_name, o.contact_number)
-            if key in seen:
+
+        results = {}
+
+        def bump(entry, created_at, **fields):
+            if entry['lat'] is None and fields.get('lat') is not None:
+                entry['lat'] = fields['lat']
+                entry['lng'] = fields['lng']
+            if created_at and created_at.isoformat() > entry['created_at']:
+                entry['created_at'] = created_at.isoformat()
+                entry['status'] = fields.get('status', entry['status'])
+                entry['event_type'] = fields.get('event_type', entry['event_type'])
+                entry['event_date'] = fields.get('event_date', entry['event_date'])
+                entry['address'] = fields.get('address') or entry['address']
+                entry['phone'] = fields.get('phone') or entry['phone']
+                entry['email'] = fields.get('email') or entry['email']
+            entry['pin_count'] += 1
+
+        for o in Order.objects.filter(customer_name__icontains=search).order_by('-created_at')[:50]:
+            key = (o.customer_name or '').strip().lower()
+            entry = results.get(key)
+            if entry is None:
+                results[key] = {
+                    'order_id': o.id,
+                    'name': o.customer_name,
+                    'phone': o.contact_number,
+                    'email': o.email,
+                    'address': o.delivery_address,
+                    'lat': float(o.lat) if o.lat else None,
+                    'lng': float(o.lng) if o.lng else None,
+                    'event_type': o.event_type,
+                    'event_date': o.event_date,
+                    'status': o.status,
+                    'created_at': o.created_at.isoformat(),
+                    'source': 'order',
+                    'pin_count': 1,
+                }
+            else:
+                bump(entry, o.created_at,
+                     lat=float(o.lat) if o.lat else None,
+                     lng=float(o.lng) if o.lng else None,
+                     status=o.status, event_type=o.event_type, event_date=o.event_date,
+                     address=o.delivery_address, phone=o.contact_number, email=o.email)
+
+        pins_qs = DeliveryPin.objects.filter(label__icontains=search)
+        pins_qs = pins_qs | DeliveryPin.objects.filter(address__icontains=search)
+        for p in pins_qs[:50]:
+            name = p.label or p.address
+            key = (name or '').strip().lower()
+            if not key:
                 continue
-            seen.add(key)
-            customers.append({
-                'order_id': o.id,
-                'name': o.customer_name,
-                'phone': o.contact_number,
-                'email': o.email,
-                'address': o.delivery_address,
-                'lat': float(o.lat) if o.lat else None,
-                'lng': float(o.lng) if o.lng else None,
-                'event_type': o.event_type,
-                'event_date': o.event_date,
-                'status': o.status,
-                'created_at': o.created_at,
-            })
-        return Response(customers)
+            entry = results.get(key)
+            if entry is None:
+                results[key] = {
+                    'order_id': None,
+                    'name': name,
+                    'phone': '',
+                    'email': '',
+                    'address': p.address,
+                    'lat': float(p.lat),
+                    'lng': float(p.lng),
+                    'event_type': '',
+                    'event_date': p.pin_date,
+                    'status': 'manual',
+                    'created_at': p.created_at.isoformat(),
+                    'source': 'pin',
+                    'pin_count': 1,
+                }
+            else:
+                bump(entry, p.created_at,
+                     lat=float(p.lat), lng=float(p.lng),
+                     status='manual', event_date=p.pin_date, address=p.address)
+
+        return Response(sorted(results.values(), key=lambda x: x['created_at'], reverse=True))
+
+
+class ShopSettingsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        s = ShopSettings.get()
+        return Response({
+            'address': s.address,
+            'lat': float(s.lat) if s.lat is not None else None,
+            'lng': float(s.lng) if s.lng is not None else None,
+        })
+
+    def put(self, request):
+        s = ShopSettings.get()
+        if 'address' in request.data:
+            s.address = request.data.get('address') or ''
+        if request.data.get('lat') is not None:
+            s.lat = request.data.get('lat')
+        if request.data.get('lng') is not None:
+            s.lng = request.data.get('lng')
+        s.save()
+        return Response({
+            'address': s.address,
+            'lat': float(s.lat) if s.lat is not None else None,
+            'lng': float(s.lng) if s.lng is not None else None,
+        })
 
 
 class DeliveryRouteListCreateView(generics.ListCreateAPIView):

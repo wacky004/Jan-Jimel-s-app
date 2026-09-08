@@ -77,6 +77,23 @@ class OrderItem(models.Model):
         return f'{self.display_name} x{self.quantity}'
 
 
+class ShopSettings(models.Model):
+    """Singleton row (pk=1) holding the business base location for directions."""
+
+    address = models.TextField(blank=True)
+    lat = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    lng = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return self.address or 'Shop Settings'
+
+
 class DeliveryPin(models.Model):
     label = models.CharField(max_length=150, blank=True, default='')
     address = models.TextField(blank=True)

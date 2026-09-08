@@ -27,4 +27,14 @@ class Command(BaseCommand):
             )
             self.stdout.write('Created admin / janjimels2026')
 
+        from orders.models import ShopSettings
+
+        shop = ShopSettings.get()
+        if not shop.address:
+            shop.address = '#1 Pelota St., Saint Francis Village, Cainta, Rizal'
+            shop.lat = '14.5758'
+            shop.lng = '121.1182'
+            shop.save()
+            self.stdout.write('Seeded default shop location.')
+
         call_command('seed_pricelist', clean_legacy=True)

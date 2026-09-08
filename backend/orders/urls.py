@@ -7,6 +7,7 @@ urlpatterns = [
     path('pins/', views.DeliveryPinsView.as_view(), name='delivery_pins'),
     path('pins/<int:pk>/', views.DeliveryPinDeleteView.as_view(), name='delivery_pin_delete'),
     path('customers/', views.CustomerSearchView.as_view(), name='customer_search'),
+    path('shop/', views.ShopSettingsView.as_view(), name='shop_settings'),
     path('routes/', views.DeliveryRouteListCreateView.as_view(), name='route_list'),
     path('routes/<int:pk>/', views.DeliveryRouteDetailView.as_view(), name='route_detail'),
     path('dashboard/', views.DashboardView.as_view(), name='dashboard'),

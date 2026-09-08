@@ -17,7 +17,7 @@ const statusColors = {
 }
 
 const HOME = [14.5758, 121.1182]
-const SHOP = { lat: 14.5758, lng: 121.1182, name: 'Jan & Jimels (Shop)' }
+const DEFAULT_SHOP = { address: '#1 Pelota St., Saint Francis Village, Cainta, Rizal', lat: 14.5758, lng: 121.1182 }
 
 const makePinIcon = (color, size = 20) =>
   L.divIcon({
@@ -45,6 +45,7 @@ const makeShopIcon = () =>
 
 export default function DeliveryMap() {
   const [pins, setPins] = useState([])
+  const [shop, setShop] = useState(DEFAULT_SHOP)
   const [status, setStatus] = useState('')
   const [month, setMonth] = useState('')
   const [heat, setHeat] = useState(false)
@@ -58,15 +59,21 @@ export default function DeliveryMap() {
   const [pinError, setPinError] = useState('')
   const [saving, setSaving] = useState(false)
   const [savedToast, setSavedToast] = useState(false)
+  const [shopForm, setShopForm] = useState(null)
+  const [shopSaving, setShopSaving] = useState(false)
+  const [shopError, setShopError] = useState('')
   const [customer, setCustomer] = useState(null)
   const [customerPins, setCustomerPins] = useState([])
+  const [destPinId, setDestPinId] = useState(null)
   const [routePath, setRoutePath] = useState(null)
   const [routeInfo, setRouteInfo] = useState(null)
   const [routeNote, setRouteNote] = useState('')
   const [routeLoading, setRouteLoading] = useState(false)
+  const [noLocation, setNoLocation] = useState(false)
   const mapRef = useRef(null)
   const manualModeRef = useRef(false)
   const clickHandlerRef = useRef(() => {})
+  const pinForCustomerRef = useRef(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -83,6 +90,17 @@ export default function DeliveryMap() {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    api
+      .get('/orders/shop/')
+      .then(({ data }) => {
+        if (data && data.lat !== null && data.lng !== null) {
+          setShop({ address: data.address || DEFAULT_SHOP.address, lat: data.lat, lng: data.lng })
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const filtered = useMemo(() => {
     if (!month) return pins
@@ -111,6 +129,55 @@ export default function DeliveryMap() {
     if (mapRef.current) mapRef.current.flyTo([lat, lng], 15, { duration: 1 })
   }
 
+  const fitRoute = (dest) => {
+    if (mapRef.current) {
+      mapRef.current.fitBounds(
+        [
+          [shop.lat, shop.lng],
+          [dest.lat, dest.lng],
+        ],
+        { padding: [70, 70] },
+      )
+    }
+  }
+
+  const drawRoute = useCallback(
+    async (dest) => {
+      if (!dest) return
+      setRouteLoading(true)
+      setRouteNote('')
+      try {
+        const coords = `${shop.lng},${shop.lat};${dest.lng},${dest.lat}`
+        const res = await fetch(
+          `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`,
+        )
+        const data = await res.json()
+        const route = data.routes?.[0]
+        if (route?.geometry?.coordinates) {
+          setRoutePath(route.geometry.coordinates.map(([lng, lat]) => [lat, lng]))
+          setRouteInfo({ km: route.distance / 1000, min: route.duration / 60 })
+        } else {
+          setRoutePath([
+            [shop.lat, shop.lng],
+            [dest.lat, dest.lng],
+          ])
+          setRouteInfo(null)
+          setRouteNote('Road route unavailable — showing a straight line.')
+        }
+      } catch {
+        setRoutePath([
+          [shop.lat, shop.lng],
+          [dest.lat, dest.lng],
+        ])
+        setRouteInfo(null)
+        setRouteNote('Road route unavailable — showing a straight line.')
+      } finally {
+        setRouteLoading(false)
+      }
+    },
+    [shop.lat, shop.lng],
+  )
+
   const searchAddress = async () => {
     if (!addrQuery.trim()) return
     try {
@@ -137,9 +204,12 @@ export default function DeliveryMap() {
   const clearCustomer = () => {
     setCustomer(null)
     setCustomerPins([])
+    setDestPinId(null)
     setRoutePath(null)
     setRouteInfo(null)
     setRouteNote('')
+    setNoLocation(false)
+    pinForCustomerRef.current = null
   }
 
   const selectCustomer = (c) => {
@@ -147,92 +217,62 @@ export default function DeliveryMap() {
     setRoutePath(null)
     setRouteInfo(null)
     setRouteNote('')
+    setNoLocation(false)
     setCustResults([])
     const matched = pins.filter(
-      (p) =>
-        p.source === 'order' &&
-        p.customer_name &&
-        p.customer_name.toLowerCase() === (c.name || '').toLowerCase(),
+      (p) => p.customer_name && p.customer_name.toLowerCase() === (c.name || '').toLowerCase(),
     )
     setCustomerPins(matched)
+
+    let dest = null
     if (matched.length > 0) {
-      if (matched.length === 1) fly(matched[0].lat, matched[0].lng)
+      const sorted = [...matched].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+      dest = sorted[0]
+      setDestPinId(`${sorted[0].source}-${sorted[0].id}`)
+      if (matched.length === 1) fly(dest.lat, dest.lng)
       else mapRef.current?.fitBounds(matched.map((p) => [p.lat, p.lng]), { padding: [50, 50] })
     } else if (c.lat && c.lng) {
+      dest = { lat: c.lat, lng: c.lng }
+      setDestPinId(null)
       fly(c.lat, c.lng)
     } else if (c.address) {
-      geocodeAndFly(c.address)
-    }
-  }
-
-  const geocodeAndFly = async (address) => {
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`,
-      )
-      const data = await res.json()
-      if (data[0]) fly(Number(data[0].lat), Number(data[0].lon))
-    } catch {}
-  }
-
-  const destinationCoords = () => {
-    if (!customer) return null
-    if (customerPins.length > 0) {
-      const p = customerPins[0]
-      return { lat: p.lat, lng: p.lng }
-    }
-    if (customer.lat && customer.lng) return { lat: customer.lat, lng: customer.lng }
-    return null
-  }
-
-  const showDirections = async () => {
-    if (!customer) return
-    const dest = destinationCoords()
-    if (!dest) {
-      alert('This customer has no pinned location yet. Pin their address first, then show directions.')
+      setNoLocation(true)
+      return
+    } else {
+      setNoLocation(true)
       return
     }
-    setRouteLoading(true)
-    setRouteNote('')
-    try {
-      const coords = `${SHOP.lng},${SHOP.lat};${dest.lng},${dest.lat}`
-      const res = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`,
-      )
-      const data = await res.json()
-      const route = data.routes?.[0]
-      if (route?.geometry?.coordinates) {
-        setRoutePath(route.geometry.coordinates.map(([lng, lat]) => [lat, lng]))
-        setRouteInfo({
-          km: route.distance / 1000,
-          min: route.duration / 60,
-        })
-      } else {
-        setRoutePath([
-          [SHOP.lat, SHOP.lng],
-          [dest.lat, dest.lng],
-        ])
-        setRouteInfo(null)
-        setRouteNote('Road route unavailable — showing a straight line.')
-      }
-    } catch {
-      setRoutePath([
-        [SHOP.lat, SHOP.lng],
-        [dest.lat, dest.lng],
-      ])
-      setRouteInfo(null)
-      setRouteNote('Road route unavailable — showing a straight line.')
-    } finally {
-      setRouteLoading(false)
-    }
+    drawRoute(dest)
   }
+
+  const pickDestination = (p) => {
+    setDestPinId(`${p.source}-${p.id}`)
+    fly(p.lat, p.lng)
+    drawRoute({ lat: p.lat, lng: p.lng })
+  }
+
+  const currentDest = useMemo(() => {
+    if (!customer) return null
+    const match = customerPins.find((p) => `${p.source}-${p.id}` === destPinId)
+    if (match) return { lat: match.lat, lng: match.lng }
+    if (destPinId === null && customer.lat && customer.lng) return { lat: customer.lat, lng: customer.lng }
+    return null
+  }, [customer, customerPins, destPinId])
 
   const onMapClick = (lat, lng) => {
     if (!manualModeRef.current) return
     setManualMode(false)
     manualModeRef.current = false
     setPinError('')
-    setPinForm({ label: '', address: '', lat, lng, pin_date: localDate(), notes: '' })
+    const forCustomer = pinForCustomerRef.current
+    setPinForm({
+      label: forCustomer ? forCustomer.name : '',
+      address: '',
+      lat,
+      lng,
+      pin_date: localDate(),
+      notes: '',
+    })
     reverseGeocode(lat, lng).then((address) => {
       if (address) setPinForm((f) => (f ? { ...f, address } : f))
     })
@@ -241,8 +281,9 @@ export default function DeliveryMap() {
 
   const openPinForm = (place, lat, lng) => {
     setPinError('')
+    const forCustomer = pinForCustomerRef.current
     setPinForm({
-      label: '',
+      label: forCustomer ? forCustomer.name : '',
       address: place?.display_name || '',
       lat,
       lng,
@@ -268,7 +309,15 @@ export default function DeliveryMap() {
       setPinForm(null)
       setSavedToast(true)
       setTimeout(() => setSavedToast(false), 3500)
-      load()
+      const forCustomer = pinForCustomerRef.current
+      pinForCustomerRef.current = null
+      await load()
+      if (forCustomer) {
+        setCustQuery(forCustomer.name)
+        const { data } = await api.get(`/orders/customers/?search=${encodeURIComponent(forCustomer.name)}`)
+        const found = data.find((x) => x.name.toLowerCase() === forCustomer.name.toLowerCase()) || data[0]
+        if (found) selectCustomer(found)
+      }
     } catch (err) {
       const data = err.response?.data
       const msg =
@@ -293,10 +342,54 @@ export default function DeliveryMap() {
     }
   }
 
-  const dest = destinationCoords()
+  const pinThisCustomer = () => {
+    pinForCustomerRef.current = customer
+    setNoLocation(false)
+    setManualMode(true)
+    manualModeRef.current = true
+    if (customer?.address) {
+      setAddrQuery(customer.address)
+      searchAddress()
+    }
+  }
+
+  const saveShop = async (e) => {
+    e.preventDefault()
+    setShopError('')
+    if (!shopForm) return
+    setShopSaving(true)
+    try {
+      const { data } = await api.put('/orders/shop/', shopForm)
+      setShop({ address: data.address || DEFAULT_SHOP.address, lat: data.lat, lng: data.lng })
+      setShopForm(null)
+      if (currentDest) drawRoute(currentDest)
+    } catch (err) {
+      setShopError('Could not save the shop location. Please try again.')
+    } finally {
+      setShopSaving(false)
+    }
+  }
+
+  const searchShopAddress = async () => {
+    if (!shopForm?.address.trim()) return
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(shopForm.address)}`,
+      )
+      const data = await res.json()
+      if (data[0]) {
+        setShopForm((f) => ({ ...f, lat: Number(data[0].lat), lng: Number(data[0].lon) }))
+      } else {
+        setShopError('Address not found — type it differently or set the pin manually.')
+      }
+    } catch {
+      setShopError('Address search failed. Check your connection.')
+    }
+  }
+
   const isCustomerPin = (p) =>
     customer &&
-    p.source === 'order' &&
+    p.customer_name &&
     p.customer_name.toLowerCase() === customer.name.toLowerCase()
 
   return (
@@ -305,7 +398,7 @@ export default function DeliveryMap() {
         <div>
           <h2 className="font-display text-2xl font-bold text-navy-900">Delivery Map</h2>
           <p className="text-sm text-navy-600">
-            Save delivery pins, search customers, and get road directions from the shop.
+            Search a customer to pan to their location and see road directions from the shop.
           </p>
         </div>
       </div>
@@ -327,7 +420,7 @@ export default function DeliveryMap() {
               <div className="absolute z-[600] mt-1 max-h-72 w-full max-w-xs overflow-y-auto rounded-xl border border-navy-100 bg-white shadow-xl">
                 {custResults.map((c) => (
                   <button
-                    key={`${c.order_id}-${c.name}`}
+                    key={`${c.source}-${c.order_id || c.name}-${c.name}`}
                     type="button"
                     onClick={() => selectCustomer(c)}
                     className="block w-full border-b border-navy-50 px-4 py-3 text-left transition last:border-0 hover:bg-gold-500/10"
@@ -338,7 +431,8 @@ export default function DeliveryMap() {
                     </p>
                     <p className="text-xs text-navy-500">{c.address}</p>
                     <p className="mt-0.5 text-[11px] text-navy-400">
-                      {c.event_type && `${c.event_type} · `}last order {formatDateTime(c.created_at)}
+                      {c.pin_count} pinned location{c.pin_count === 1 ? '' : 's'} ·{' '}
+                      {c.event_type && `${c.event_type} · `}last {formatDateTime(c.created_at)}
                     </p>
                   </button>
                 ))}
@@ -392,6 +486,7 @@ export default function DeliveryMap() {
                 const next = !manualMode
                 setManualMode(next)
                 manualModeRef.current = next
+                if (next) pinForCustomerRef.current = null
               }}
               className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
                 manualMode
@@ -400,6 +495,19 @@ export default function DeliveryMap() {
               }`}
             >
               {manualMode ? '✔ Manual pin ON — click the map' : '🖐 Manual pin'}
+            </button>
+          </div>
+
+          <div>
+            <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-600 uppercase">
+              🏠 Shop base
+            </p>
+            <button
+              type="button"
+              onClick={() => setShopForm({ address: shop.address, lat: shop.lat, lng: shop.lng })}
+              className="rounded-full border border-navy-200 bg-white px-5 py-2.5 text-sm font-semibold text-navy-800 transition hover:border-gold-500"
+            >
+              Set shop base
             </button>
           </div>
 
@@ -443,17 +551,17 @@ export default function DeliveryMap() {
           {heat && <HeatLayer points={heatPoints} />}
 
           {/* Shop base */}
-          <Marker position={[SHOP.lat, SHOP.lng]} icon={makeShopIcon()}>
+          <Marker position={[shop.lat, shop.lng]} icon={makeShopIcon()}>
             <Popup>
-              <p className="font-semibold text-navy-900">{SHOP.name}</p>
-              <p className="text-xs text-navy-600">#1 Pelota St., Saint Francis Village, Cainta, Rizal</p>
+              <p className="font-semibold text-navy-900">Jan &amp; Jimels (Shop)</p>
+              <p className="text-xs text-navy-600">{shop.address}</p>
             </Popup>
             <Tooltip direction="top" offset={[0, -20]}>Jan &amp; Jimels (Shop)</Tooltip>
           </Marker>
 
-          {/* Directions destination marker */}
-          {dest && routePath && (
-            <Marker position={[dest.lat, dest.lng]} icon={makePinIcon('#2563eb', 26)}>
+          {/* Destination marker */}
+          {currentDest && routePath && (
+            <Marker position={[currentDest.lat, currentDest.lng]} icon={makePinIcon('#2563eb', 26)}>
               <Popup>
                 <p className="font-semibold text-navy-900">{customer.name}</p>
                 <p className="text-xs text-navy-600">Destination</p>
@@ -556,19 +664,25 @@ export default function DeliveryMap() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {routeInfo && (
+              {routeLoading && (
+                <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">
+                  Getting route…
+                </span>
+              )}
+              {!routeLoading && routeInfo && (
                 <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700">
                   ≈ {routeInfo.km.toFixed(1)} km · {Math.round(routeInfo.min)} min drive
                 </span>
               )}
-              <button
-                type="button"
-                onClick={showDirections}
-                disabled={routeLoading}
-                className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
-              >
-                {routeLoading ? 'Getting route…' : routePath ? '↻ Refresh directions' : '🧭 Directions from shop'}
-              </button>
+              {!routeLoading && currentDest && (
+                <button
+                  type="button"
+                  onClick={() => drawRoute(currentDest)}
+                  className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
+                >
+                  {routePath ? '↻ Refresh directions' : '🧭 Show directions'}
+                </button>
+              )}
               {routePath && (
                 <button
                   type="button"
@@ -591,6 +705,44 @@ export default function DeliveryMap() {
               </button>
             </div>
           </div>
+
+          {/* multiple locations picker */}
+          {customerPins.length > 1 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="text-xs font-semibold text-navy-600 uppercase">Locations:</span>
+              {customerPins.map((p) => (
+                <button
+                  key={`${p.source}-${p.id}`}
+                  type="button"
+                  onClick={() => pickDestination(p)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                    `${p.source}-${p.id}` === destPinId
+                      ? 'border-blue-600 bg-blue-600 text-white'
+                      : 'border-navy-200 text-navy-700 hover:border-blue-400'
+                  }`}
+                >
+                  {p.address ? p.address.slice(0, 40) : `${Number(p.lat).toFixed(4)}, ${Number(p.lng).toFixed(4)}`}
+                  {p.event_date && ` · ${p.event_date}`}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {noLocation && (
+            <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-sm text-amber-800">
+                This customer has no pinned location yet.
+              </p>
+              <button
+                type="button"
+                onClick={pinThisCustomer}
+                className="rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-400"
+              >
+                📍 Pin this customer — click their location on the map
+              </button>
+            </div>
+          )}
+
           {routeNote && <p className="mt-2 text-xs text-amber-700">{routeNote}</p>}
         </div>
       ) : (
@@ -602,8 +754,8 @@ export default function DeliveryMap() {
             {status && ` (${status.replaceAll('_', ' ')})`}.
           </p>
           <p className="mt-1 text-xs text-navy-500">
-            Search a customer to see their pin and road directions from the shop, or save a new pin
-            by address or manually.
+            Search a customer to pan to their pin and automatically draw the road route from the
+            shop. Save new pins by address search or manual click.
           </p>
         </div>
       )}
@@ -616,6 +768,71 @@ export default function DeliveryMap() {
           error={pinError}
           onSave={savePin}
         />
+      )}
+
+      {shopForm && (
+        <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-navy-950/60 p-4 backdrop-blur-sm sm:p-8">
+          <form onSubmit={saveShop} className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <h3 className="font-display text-lg font-bold text-navy-900">Shop Base (Home Address)</h3>
+            <p className="text-xs text-navy-500">
+              All customer directions start from this point.
+            </p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Address</p>
+                <textarea
+                  rows={2}
+                  className={input}
+                  value={shopForm.address}
+                  onChange={(e) => setShopForm({ ...shopForm, address: e.target.value })}
+                  placeholder="#1 Pelota St., Saint Francis Village, Cainta, Rizal"
+                />
+                <button
+                  type="button"
+                  onClick={searchShopAddress}
+                  className="mt-2 rounded-full border border-navy-200 px-4 py-1.5 text-xs font-semibold text-navy-700 transition hover:border-gold-500"
+                >
+                  🔍 Find coordinates from address
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Latitude</p>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    className={input}
+                    value={shopForm.lat ?? ''}
+                    onChange={(e) => setShopForm({ ...shopForm, lat: e.target.value === '' ? null : Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Longitude</p>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    className={input}
+                    value={shopForm.lng ?? ''}
+                    onChange={(e) => setShopForm({ ...shopForm, lng: e.target.value === '' ? null : Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {shopError && (
+              <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{shopError}</p>
+            )}
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => setShopForm(null)} className="rounded-full border border-navy-200 px-5 py-2.5 text-sm font-semibold text-navy-800 transition hover:border-navy-400">
+                Cancel
+              </button>
+              <button type="submit" disabled={shopSaving || shopForm.lat === null || shopForm.lng === null} className={btnGold}>
+                {shopSaving ? 'Saving…' : 'Save Shop Base'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {savedToast && (
@@ -669,7 +886,7 @@ function PinFormModal({ pinForm, setPinForm, saving, error, onSave }) {
   return (
     <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-navy-950/60 p-4 backdrop-blur-sm sm:p-8">
       <form onSubmit={onSave} className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
-        <h3 className="font-display text-lg font-bold text-navy-900">Save Manual Pin</h3>
+        <h3 className="font-display text-lg font-bold text-navy-900">Save Pin</h3>
         <p className="text-xs text-navy-500">
           {Number(pinForm.lat).toFixed(5)}, {Number(pinForm.lng).toFixed(5)}
         </p>
@@ -685,6 +902,9 @@ function PinFormModal({ pinForm, setPinForm, saving, error, onSave }) {
               onChange={set('label')}
               placeholder="e.g. Aling Maria's house"
             />
+            <p className="mt-1 text-[11px] text-navy-400">
+              Tip: use the customer's name so you can search and find them again later.
+            </p>
           </div>
           <div>
             <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Address</p>
