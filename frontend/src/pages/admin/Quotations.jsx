@@ -182,7 +182,7 @@ export default function Quotations() {
             .filter(Boolean)
             .map((line) => ({ description: line, quantity: 1, unit_price: 0, price_na: false }))
     return {
-      id: q.id || 'DRAFT',
+      id: q.id || null,
       date: new Date(q.created_at || Date.now()).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }),
       name: q.name,
       phone: q.phone,

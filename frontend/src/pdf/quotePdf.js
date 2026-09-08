@@ -79,24 +79,27 @@ async function drawHeader(doc) {
   doc.setLineWidth(0.5)
   doc.line(108, 10, 108, 38)
 
-  // left zone: name + tagline (width capped well before the divider)
+  // left zone: name + tagline (widths hard-capped so nothing can cross the divider)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
   doc.setTextColor(...BRAND.white)
   doc.text('JAN & JIMELS', 45, 20)
-  doc.setFontSize(8.5)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
   doc.setTextColor(...BRAND.goldLight)
-  doc.text('PARTY NEEDS | Event Rentals & Supplies | Est. 1995', 45, 26.5)
+  doc.text('EVENT RENTALS & SUPPLIES', 45, 26.5)
+  doc.text('EST. 1995 | CAINTA, RIZAL', 45, 31)
 
   // right zone: contact block, width-limited so it can never cross the divider
   const zoneX = 116
   const zoneW = 198 - zoneX
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.8)
+  doc.setFontSize(7.6)
   doc.setTextColor(...BRAND.white)
   const addrLines = doc.splitTextToSize(SHOP.address, zoneW)
   doc.text(addrLines.slice(0, 2), 198, 15, { align: 'right' })
-  doc.text(SHOP.tel, 198, 25.5, { align: 'right' })
+  const telLines = doc.splitTextToSize(SHOP.tel, 78)
+  doc.text(telLines.slice(0, 1), 198, 25.5, { align: 'right' })
   doc.text(SHOP.email, 198, 30.5, { align: 'right' })
 }
 
@@ -243,8 +246,10 @@ async function buildPdf(kind, data) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(...BRAND.gold)
-  const ref = kind === 'quotation' ? `QUOTATION NO.: JJ-${String(data.id).padStart(4, '0')}` : `ORDER NO.: ${String(data.id).padStart(4, '0')}`
-  doc.text(ref, 198, y, { align: 'right' })
+  if (data.id != null) {
+    const ref = kind === 'quotation' ? `QUOTATION NO.: JJ-${String(data.id).padStart(4, '0')}` : `ORDER NO.: ${String(data.id).padStart(4, '0')}`
+    doc.text(ref, 198, y, { align: 'right' })
+  }
   y += 5.5
   doc.setFontSize(8.5)
   doc.setTextColor(...BRAND.gray)
