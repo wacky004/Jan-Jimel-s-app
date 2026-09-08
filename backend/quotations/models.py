@@ -32,3 +32,20 @@ class Quotation(models.Model):
 
     def __str__(self):
         return f'{self.name} - {self.get_status_display()}'
+
+
+class QuotationItem(models.Model):
+    quotation = models.ForeignKey(Quotation, on_delete=models.CASCADE, related_name='items')
+    description = models.CharField(max_length=200)
+    quantity = models.PositiveIntegerField(default=1)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    class Meta:
+        ordering = ['id']
+
+    @property
+    def amount(self):
+        return self.quantity * self.unit_price
+
+    def __str__(self):
+        return f'{self.description} x{self.quantity}'

@@ -1,7 +1,7 @@
-import { jsPDF } from 'jspdf'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import api from '../../api'
 import { btnGold, formatDateTime, input, StatusBadge } from '../../components/ui'
+import { downloadQuotationPdf } from '../../pdf/quotePdf'
 
 const filters = [
   ['', 'All Requests'],
@@ -10,11 +10,14 @@ const filters = [
   ['closed', 'Closed'],
 ]
 
+const emptyLine = { description: '', quantity: 1, unit_price: 0 }
+
 export default function Quotations() {
   const [list, setList] = useState([])
   const [status, setStatus] = useState('')
   const [selected, setSelected] = useState(null)
   const [reply, setReply] = useState('')
+  const [items, setItems] = useState([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -37,13 +40,59 @@ export default function Quotations() {
   const open = (q) => {
     setSelected(q)
     setReply(q.reply || '')
+    const saved = q.items || []
+    setItems(saved.length > 0 ? saved.map((i) => ({ ...i })) : [{ ...emptyLine }])
+  }
+
+  const updateLine = (idx, k, v) =>
+    setItems((arr) => arr.map((it, i) => (i === idx ? { ...it, [k]: v } : it)))
+
+  const addLine = () => setItems((arr) => [...arr, { ...emptyLine }])
+
+  const removeLine = (idx) => setItems((arr) => arr.filter((_, i) => i !== idx))
+
+  const total = useMemo(
+    () => items.reduce((s, it) => s + Number(it.quantity || 0) * Number(it.unit_price || 0), 0),
+    [items],
+  )
+
+  const buildReplyText = () => {
+    const lines = items
+      .filter((it) => it.description.trim())
+      .map((it) => {
+        const qty = Number(it.quantity || 0)
+        const unit = Number(it.unit_price || 0)
+        return `- ${it.description} x${qty} @ P${unit.toLocaleString('en-PH', { minimumFractionDigits: 2 })} = P${(qty * unit).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+      })
+    if (lines.length === 0) return ''
+    const name = (selected?.name || 'Customer').split(' ')[0]
+    return [
+      `Dear ${name}, thank you for your inquiry! Here is our proposal:`,
+      ...lines,
+      `TOTAL: P${total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+      'Mode of payment: 50% Down Payment; Full Payment upon delivery.',
+      '- Jan & Jimels Party Needs',
+    ].join('\n')
   }
 
   const save = async (newStatus) => {
     if (!selected) return
     setSaving(true)
     try {
-      await api.put(`/quotations/${selected.id}/`, { ...selected, reply, status: newStatus || selected.status })
+      const cleanItems = items
+        .filter((it) => it.description.trim())
+        .map((it) => ({
+          description: it.description,
+          quantity: Number(it.quantity || 0),
+          unit_price: Number(it.unit_price || 0),
+        }))
+      const finalReply = reply || buildReplyText()
+      await api.put(`/quotations/${selected.id}/`, {
+        ...selected,
+        reply: finalReply,
+        status: newStatus || selected.status,
+        items: cleanItems,
+      })
       setSelected(null)
       load()
     } finally {
@@ -51,41 +100,29 @@ export default function Quotations() {
     }
   }
 
-  const print = (q) => {
-    const doc = new jsPDF()
-    doc.setFontSize(18)
-    doc.text('Jan & Jimels Party Needs', 105, 18, { align: 'center' })
-    doc.setFontSize(11)
-    doc.text('Event Rentals & Supplies - Est. 1995', 105, 25, { align: 'center' })
-    doc.text('#1 Pelota St., Saint Francis Village, Cainta, Rizal', 105, 31, { align: 'center' })
-    doc.text('0908-950-3879 | 0999-760-3211 | janjimels95@gmail.com', 105, 37, { align: 'center' })
-
-    doc.setFontSize(14)
-    doc.text(`QUOTATION REQUEST #${q.id}`, 14, 50)
-    doc.setFontSize(10)
-    doc.text(`Name: ${q.name}`, 14, 58)
-    doc.text(`Contact: ${[q.phone, q.email].filter(Boolean).join(' | ') || '—'}`, 14, 64)
-    doc.text(`Event: ${q.event_type || '—'} on ${q.event_date || '—'} at ${q.venue || '—'}`, 14, 70)
-    let y = 80
-    if (q.items_requested) {
-      doc.text('Requested Items:', 14, y)
-      y += 6
-      q.items_requested.split('\n').forEach((line) => {
-        doc.text(`- ${line}`, 18, y)
-        y += 6
-      })
+  const pdfData = (q) => {
+    const lines =
+      (q.items && q.items.length > 0) || items.length > 0
+        ? (q.items && q.items.length > 0 ? q.items : items)
+        : (q.items_requested || '')
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => ({ description: line, quantity: 1, unit_price: 0 }))
+    return {
+      id: q.id,
+      date: new Date(q.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }),
+      name: q.name,
+      phone: q.phone,
+      email: q.email,
+      address: q.venue || '',
+      event_type: q.event_type,
+      event_date: q.event_date,
+      venue: q.venue,
+      items: lines,
     }
-    if (q.reply) {
-      y += 4
-      doc.text('Our Quotation:', 14, y)
-      y += 6
-      q.reply.split('\n').forEach((line) => {
-        doc.text(line, 18, y)
-        y += 6
-      })
-    }
-    doc.save(`Quotation-${q.id}-${q.name.replace(/\s+/g, '-')}.pdf`)
   }
+
+  const print = (q) => downloadQuotationPdf(pdfData(q))
 
   const remove = async (q) => {
     if (!window.confirm(`Delete request from ${q.name}?`)) return
@@ -181,10 +218,77 @@ export default function Quotations() {
                 <p className="mt-2 text-navy-700 whitespace-pre-line">{selected.items_requested}</p>
               )}
             </div>
+
             <div>
-              <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">
-                Your reply / quotation (sent via phone, email or SMS)
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-[11px] font-semibold tracking-wide text-navy-700 uppercase">
+                  Quotation line items
+                </p>
+                <button
+                  type="button"
+                  onClick={addLine}
+                  className="text-sm font-semibold text-gold-600 transition hover:text-gold-500"
+                >
+                  + Add line
+                </button>
+              </div>
+              <div className="space-y-2">
+                {items.map((it, idx) => (
+                  <div key={idx} className="grid gap-2 sm:grid-cols-12">
+                    <input
+                      className={`${input} sm:col-span-6`}
+                      placeholder="Description (e.g. Chairs with cover)"
+                      value={it.description}
+                      onChange={(e) => updateLine(idx, 'description', e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      className={`${input} sm:col-span-2`}
+                      placeholder="Qty"
+                      value={it.quantity}
+                      onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className={`${input} sm:col-span-3`}
+                      placeholder="Unit price"
+                      value={it.unit_price}
+                      onChange={(e) => updateLine(idx, 'unit_price', e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeLine(idx)}
+                      className="rounded-xl border border-red-200 text-sm font-bold text-red-500 transition hover:bg-red-50 sm:col-span-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-right text-sm">
+                Total:{' '}
+                <span className="font-display text-lg font-bold text-gold-700">
+                  P{total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                </span>
               </p>
+            </div>
+
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <p className="text-[11px] font-semibold tracking-wide text-navy-700 uppercase">
+                  Your reply / quotation (sent via phone, email or SMS)
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setReply(buildReplyText())}
+                  className="text-xs font-semibold text-gold-600 transition hover:text-gold-500"
+                >
+                  ✍ Generate reply from lines
+                </button>
+              </div>
               <textarea
                 rows={6}
                 className={input}
@@ -193,7 +297,14 @@ export default function Quotations() {
                 onChange={(e) => setReply(e.target.value)}
               />
             </div>
+
             <div className="flex flex-wrap justify-end gap-3">
+              <button
+                className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
+                onClick={() => downloadQuotationPdf(pdfData({ ...selected, items }))}
+              >
+                ⬇ Download Quotation PDF
+              </button>
               <button
                 className="rounded-full border border-navy-200 px-5 py-2.5 text-sm font-semibold text-navy-800 transition hover:border-navy-400"
                 disabled={saving}
@@ -219,7 +330,7 @@ export default function Quotations() {
 function Modal({ children, title, onClose }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-navy-950/60 p-4 backdrop-blur-sm sm:p-8">
-      <div className="w-full max-w-xl rounded-3xl bg-white shadow-2xl">
+      <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl">
         <div className="flex items-center justify-between rounded-t-3xl border-b border-navy-100 bg-white px-6 py-4">
           <h3 className="font-display text-lg font-bold text-navy-900">{title}</h3>
           <button onClick={onClose} className="text-navy-500 transition hover:text-navy-900" aria-label="Close">

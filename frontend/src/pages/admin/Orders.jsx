@@ -1,8 +1,8 @@
-import { jsPDF } from 'jspdf'
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../../api'
 import { btnGold, btnGhost, formatDateTime, formatPHP, input, StatusBadge } from '../../components/ui'
+import { downloadOrderPdf } from '../../pdf/quotePdf'
 import OrderForm from './OrderForm'
 
 const statuses = [
@@ -211,35 +211,23 @@ function OrderDetail({ order, onClose, onChange, onDelete }) {
   }
 
   const print = () => {
-    const doc = new jsPDF()
-    doc.setFontSize(18)
-    doc.text('Jan & Jimels Party Needs', 105, 18, { align: 'center' })
-    doc.setFontSize(11)
-    doc.text('Event Rentals & Supplies - Est. 1995', 105, 25, { align: 'center' })
-    doc.text('#1 Pelota St., Saint Francis Village, Cainta, Rizal', 105, 31, { align: 'center' })
-    doc.text('0908-950-3879 | 0999-760-3211 | janjimels95@gmail.com', 105, 37, { align: 'center' })
-
-    doc.setFontSize(14)
-    doc.text(`ORDER #${order.id}`, 14, 50)
-    doc.setFontSize(10)
-    doc.text(`Customer: ${order.customer_name}`, 14, 58)
-    doc.text(`Contact: ${order.contact_number}${order.email ? ' | ' + order.email : ''}`, 14, 64)
-    doc.text(`Event: ${order.event_type || '—'} on ${order.event_date || '—'} at ${order.event_time || '—'}`, 14, 70)
-    doc.text(`Deliver to: ${order.delivery_address}`, 14, 76)
-    doc.text(`Status: ${order.status.replaceAll('_', ' ').toUpperCase()}`, 14, 82)
-
-    let y = 92
-    doc.text('ITEMS', 14, y)
-    y += 6
-    items.forEach((i) => {
-      doc.text(`${i.item_name} x${i.quantity} @ ${formatPHP(i.unit_price)} = ${formatPHP(i.quantity * i.unit_price)}`, 18, y)
-      y += 6
+    downloadOrderPdf({
+      id: order.id,
+      date: new Date(order.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }),
+      customer_name: order.customer_name,
+      contact_number: order.contact_number,
+      email: order.email,
+      event_type: order.event_type,
+      event_date: order.event_date,
+      event_time: order.event_time,
+      delivery_address: order.delivery_address,
+      status: order.status,
+      items,
+      total_price: order.total_price,
+      discount: order.discount,
+      deposit: order.deposit,
+      balance: order.balance,
     })
-    y += 4
-    doc.text(`Subtotal: ${formatPHP(order.total_price)}`, 14, y)
-    y += 6
-    doc.text(`Deposit: ${formatPHP(order.deposit)}   Balance: ${formatPHP(order.balance)}`, 14, y)
-    doc.save(`Order-${order.id}-${order.customer_name.replace(/\s+/g, '-')}.pdf`)
   }
 
   const nextStatus = {

@@ -4,6 +4,7 @@ import 'leaflet.heat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import api from '../../api'
+import MapPicker from '../../components/MapPicker'
 import { btnGold, formatDateTime, formatPHP, input, StatusBadge } from '../../components/ui'
 
 const statusColors = {
@@ -58,7 +59,7 @@ export default function DeliveryMap() {
   const [pinForm, setPinForm] = useState(null)
   const [pinError, setPinError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [savedToast, setSavedToast] = useState(false)
+  const [toast, setToast] = useState(null)
   const [shopForm, setShopForm] = useState(null)
   const [shopSaving, setShopSaving] = useState(false)
   const [shopError, setShopError] = useState('')
@@ -307,8 +308,8 @@ export default function DeliveryMap() {
     try {
       await api.post('/orders/pins/', { ...pinForm, label })
       setPinForm(null)
-      setSavedToast(true)
-      setTimeout(() => setSavedToast(false), 3500)
+      setToast('✓ Pin saved!')
+      setTimeout(() => setToast(null), 3500)
       const forCustomer = pinForCustomerRef.current
       pinForCustomerRef.current = null
       await load()
@@ -357,11 +358,21 @@ export default function DeliveryMap() {
     e.preventDefault()
     setShopError('')
     if (!shopForm) return
+    if (shopForm.lat === null || shopForm.lng === null) {
+      setShopError('Pin the shop location on the map first.')
+      return
+    }
     setShopSaving(true)
     try {
-      const { data } = await api.put('/orders/shop/', shopForm)
+      const { data } = await api.put('/orders/shop/', {
+        address: shopForm.address,
+        lat: shopForm.lat,
+        lng: shopForm.lng,
+      })
       setShop({ address: data.address || DEFAULT_SHOP.address, lat: data.lat, lng: data.lng })
       setShopForm(null)
+      setToast('✓ Shop base updated')
+      setTimeout(() => setToast(null), 3500)
       if (currentDest) drawRoute(currentDest)
     } catch (err) {
       setShopError('Could not save the shop location. Please try again.')
@@ -370,21 +381,15 @@ export default function DeliveryMap() {
     }
   }
 
-  const searchShopAddress = async () => {
-    if (!shopForm?.address.trim()) return
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(shopForm.address)}`,
-      )
-      const data = await res.json()
-      if (data[0]) {
-        setShopForm((f) => ({ ...f, lat: Number(data[0].lat), lng: Number(data[0].lon) }))
-      } else {
-        setShopError('Address not found — type it differently or set the pin manually.')
-      }
-    } catch {
-      setShopError('Address search failed. Check your connection.')
-    }
+  const onShopPick = (lat, lng) => {
+    setShopForm((f) => (f ? { ...f, lat, lng } : f))
+    reverseGeocode(lat, lng).then((address) => {
+      if (address) setShopForm((f) => (f ? { ...f, address } : f))
+    })
+  }
+
+  const resetShop = () => {
+    setShopForm({ address: DEFAULT_SHOP.address, lat: DEFAULT_SHOP.lat, lng: DEFAULT_SHOP.lng })
   }
 
   const isCustomerPin = (p) =>
@@ -772,12 +777,13 @@ export default function DeliveryMap() {
 
       {shopForm && (
         <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-navy-950/60 p-4 backdrop-blur-sm sm:p-8">
-          <form onSubmit={saveShop} className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+          <form onSubmit={saveShop} className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
             <h3 className="font-display text-lg font-bold text-navy-900">Shop Base (Home Address)</h3>
             <p className="text-xs text-navy-500">
-              All customer directions start from this point.
+              Search your address or click the map to pin. All customer directions start from this point.
             </p>
             <div className="mt-4 space-y-3">
+              <MapPicker height={260} lat={shopForm.lat} lng={shopForm.lng} onPick={onShopPick} />
               <div>
                 <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Address</p>
                 <textarea
@@ -787,35 +793,21 @@ export default function DeliveryMap() {
                   onChange={(e) => setShopForm({ ...shopForm, address: e.target.value })}
                   placeholder="#1 Pelota St., Saint Francis Village, Cainta, Rizal"
                 />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-navy-50 px-4 py-2.5 text-xs text-navy-600">
+                <span>
+                  Coordinates:{' '}
+                  <span className="font-semibold text-navy-800">
+                    {shopForm.lat?.toFixed(6)}, {shopForm.lng?.toFixed(6)}
+                  </span>
+                </span>
                 <button
                   type="button"
-                  onClick={searchShopAddress}
-                  className="mt-2 rounded-full border border-navy-200 px-4 py-1.5 text-xs font-semibold text-navy-700 transition hover:border-gold-500"
+                  onClick={resetShop}
+                  className="rounded-full border border-navy-200 bg-white px-3 py-1 text-xs font-semibold text-navy-700 transition hover:border-gold-500"
                 >
-                  🔍 Find coordinates from address
+                  Reset to Cainta default
                 </button>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Latitude</p>
-                  <input
-                    type="number"
-                    step="0.000001"
-                    className={input}
-                    value={shopForm.lat ?? ''}
-                    onChange={(e) => setShopForm({ ...shopForm, lat: e.target.value === '' ? null : Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Longitude</p>
-                  <input
-                    type="number"
-                    step="0.000001"
-                    className={input}
-                    value={shopForm.lng ?? ''}
-                    onChange={(e) => setShopForm({ ...shopForm, lng: e.target.value === '' ? null : Number(e.target.value) })}
-                  />
-                </div>
               </div>
             </div>
 
@@ -827,7 +819,7 @@ export default function DeliveryMap() {
               <button type="button" onClick={() => setShopForm(null)} className="rounded-full border border-navy-200 px-5 py-2.5 text-sm font-semibold text-navy-800 transition hover:border-navy-400">
                 Cancel
               </button>
-              <button type="submit" disabled={shopSaving || shopForm.lat === null || shopForm.lng === null} className={btnGold}>
+              <button type="submit" disabled={shopSaving} className={btnGold}>
                 {shopSaving ? 'Saving…' : 'Save Shop Base'}
               </button>
             </div>
@@ -835,9 +827,9 @@ export default function DeliveryMap() {
         </div>
       )}
 
-      {savedToast && (
+      {toast && (
         <div className="fixed right-6 bottom-6 z-[80] rounded-full bg-green-600 px-6 py-3 text-sm font-semibold text-white shadow-xl">
-          ✓ Pin saved!
+          {toast}
         </div>
       )}
     </div>
