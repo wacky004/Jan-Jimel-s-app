@@ -79,7 +79,7 @@ class DeliveryPinsView(APIView):
                 'source': 'manual',
                 'lat': float(p.lat),
                 'lng': float(p.lng),
-                'customer_name': p.label,
+                'customer_name': p.label or 'Manual Pin',
                 'contact_number': '',
                 'email': '',
                 'event_type': '',

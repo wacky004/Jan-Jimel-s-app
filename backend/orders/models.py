@@ -78,7 +78,7 @@ class OrderItem(models.Model):
 
 
 class DeliveryPin(models.Model):
-    label = models.CharField(max_length=150)
+    label = models.CharField(max_length=150, blank=True, default='')
     address = models.TextField(blank=True)
     lat = models.DecimalField(max_digits=10, decimal_places=7)
     lng = models.DecimalField(max_digits=10, decimal_places=7)

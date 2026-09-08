@@ -16,67 +16,34 @@ const statusColors = {
   manual: '#111827',
 }
 
-const makePinIcon = (color) =>
-  L.divIcon({
-    className: '',
-    html: `<div style="width:20px;height:20px;border-radius:50% 50% 50% 0;background:${color};border:3px solid #fff;transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,.45)"></div>`,
-    iconSize: [20, 20],
-    iconAnchor: [10, 20],
-  })
-
-const makeNumberIcon = (num) =>
-  L.divIcon({
-    className: '',
-    html: `<div style="width:26px;height:26px;border-radius:50%;background:#14274d;border:3px solid #d4af37;color:#f0d47a;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4)">${num}</div>`,
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
-  })
-
 const HOME = [14.5758, 121.1182]
+const SHOP = { lat: 14.5758, lng: 121.1182, name: 'Jan & Jimels (Shop)' }
+
+const makePinIcon = (color, size = 20) =>
+  L.divIcon({
+    className: '',
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50% 50% 50% 0;background:${color};border:3px solid #fff;transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,.45)"></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size],
+  })
+
+const makeHighlightIcon = () =>
+  L.divIcon({
+    className: '',
+    html: `<div style="width:30px;height:30px;border-radius:50% 50% 50% 0;background:#d4af37;border:3px solid #fff;transform:rotate(-45deg);box-shadow:0 0 0 3px rgba(212,175,55,.35),0 2px 8px rgba(0,0,0,.5)"></div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 30],
+  })
+
+const makeShopIcon = () =>
+  L.divIcon({
+    className: '',
+    html: `<div style="width:34px;height:34px;border-radius:8px;background:#14274d;border:3px solid #d4af37;color:#f0d47a;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.5)">JJ</div>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+  })
 
 export default function DeliveryMap() {
-  const [tab, setTab] = useState('pins')
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl font-bold text-navy-900">Delivery Map</h2>
-          <p className="text-sm text-navy-600">
-            Pin deliveries and plan the day's route.
-          </p>
-        </div>
-        <div className="flex rounded-full border border-navy-200 bg-white p-1 shadow-sm">
-          <TabButton active={tab === 'pins'} onClick={() => setTab('pins')}>
-            📍 Delivery Pins
-          </TabButton>
-          <TabButton active={tab === 'routes'} onClick={() => setTab('routes')}>
-            🚚 Route Planner
-          </TabButton>
-        </div>
-      </div>
-
-      {tab === 'pins' ? <PinsTab /> : <RoutesTab />}
-    </div>
-  )
-}
-
-function TabButton({ active, onClick, children }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
-        active ? 'bg-navy-900 text-white shadow' : 'text-navy-600 hover:text-navy-900'
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
-
-/* ============================ TAB 1: PINS ============================ */
-
-function PinsTab() {
   const [pins, setPins] = useState([])
   const [status, setStatus] = useState('')
   const [month, setMonth] = useState('')
@@ -91,6 +58,12 @@ function PinsTab() {
   const [pinError, setPinError] = useState('')
   const [saving, setSaving] = useState(false)
   const [savedToast, setSavedToast] = useState(false)
+  const [customer, setCustomer] = useState(null)
+  const [customerPins, setCustomerPins] = useState([])
+  const [routePath, setRoutePath] = useState(null)
+  const [routeInfo, setRouteInfo] = useState(null)
+  const [routeNote, setRouteNote] = useState('')
+  const [routeLoading, setRouteLoading] = useState(false)
   const mapRef = useRef(null)
   const manualModeRef = useRef(false)
   const clickHandlerRef = useRef(() => {})
@@ -161,6 +134,99 @@ function PinsTab() {
     }
   }
 
+  const clearCustomer = () => {
+    setCustomer(null)
+    setCustomerPins([])
+    setRoutePath(null)
+    setRouteInfo(null)
+    setRouteNote('')
+  }
+
+  const selectCustomer = (c) => {
+    setCustomer(c)
+    setRoutePath(null)
+    setRouteInfo(null)
+    setRouteNote('')
+    setCustResults([])
+    const matched = pins.filter(
+      (p) =>
+        p.source === 'order' &&
+        p.customer_name &&
+        p.customer_name.toLowerCase() === (c.name || '').toLowerCase(),
+    )
+    setCustomerPins(matched)
+    if (matched.length > 0) {
+      if (matched.length === 1) fly(matched[0].lat, matched[0].lng)
+      else mapRef.current?.fitBounds(matched.map((p) => [p.lat, p.lng]), { padding: [50, 50] })
+    } else if (c.lat && c.lng) {
+      fly(c.lat, c.lng)
+    } else if (c.address) {
+      geocodeAndFly(c.address)
+    }
+  }
+
+  const geocodeAndFly = async (address) => {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`,
+      )
+      const data = await res.json()
+      if (data[0]) fly(Number(data[0].lat), Number(data[0].lon))
+    } catch {}
+  }
+
+  const destinationCoords = () => {
+    if (!customer) return null
+    if (customerPins.length > 0) {
+      const p = customerPins[0]
+      return { lat: p.lat, lng: p.lng }
+    }
+    if (customer.lat && customer.lng) return { lat: customer.lat, lng: customer.lng }
+    return null
+  }
+
+  const showDirections = async () => {
+    if (!customer) return
+    const dest = destinationCoords()
+    if (!dest) {
+      alert('This customer has no pinned location yet. Pin their address first, then show directions.')
+      return
+    }
+    setRouteLoading(true)
+    setRouteNote('')
+    try {
+      const coords = `${SHOP.lng},${SHOP.lat};${dest.lng},${dest.lat}`
+      const res = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`,
+      )
+      const data = await res.json()
+      const route = data.routes?.[0]
+      if (route?.geometry?.coordinates) {
+        setRoutePath(route.geometry.coordinates.map(([lng, lat]) => [lat, lng]))
+        setRouteInfo({
+          km: route.distance / 1000,
+          min: route.duration / 60,
+        })
+      } else {
+        setRoutePath([
+          [SHOP.lat, SHOP.lng],
+          [dest.lat, dest.lng],
+        ])
+        setRouteInfo(null)
+        setRouteNote('Road route unavailable — showing a straight line.')
+      }
+    } catch {
+      setRoutePath([
+        [SHOP.lat, SHOP.lng],
+        [dest.lat, dest.lng],
+      ])
+      setRouteInfo(null)
+      setRouteNote('Road route unavailable — showing a straight line.')
+    } finally {
+      setRouteLoading(false)
+    }
+  }
+
   const onMapClick = (lat, lng) => {
     if (!manualModeRef.current) return
     setManualMode(false)
@@ -176,7 +242,7 @@ function PinsTab() {
   const openPinForm = (place, lat, lng) => {
     setPinError('')
     setPinForm({
-      label: place?.display_name || '',
+      label: '',
       address: place?.display_name || '',
       lat,
       lng,
@@ -190,13 +256,15 @@ function PinsTab() {
   const savePin = async (e) => {
     e.preventDefault()
     setPinError('')
-    if (!pinForm || !pinForm.label.trim()) {
-      setPinError('Please enter a label for the pin.')
+    if (!pinForm) return
+    const label = pinForm.label.trim()
+    if (!label && !pinForm.address.trim()) {
+      setPinError('Enter a short label or at least an address.')
       return
     }
     setSaving(true)
     try {
-      await api.post('/orders/pins/', pinForm)
+      await api.post('/orders/pins/', { ...pinForm, label })
       setPinForm(null)
       setSavedToast(true)
       setTimeout(() => setSavedToast(false), 3500)
@@ -225,146 +293,182 @@ function PinsTab() {
     }
   }
 
+  const dest = destinationCoords()
+  const isCustomerPin = (p) =>
+    customer &&
+    p.source === 'order' &&
+    p.customer_name.toLowerCase() === customer.name.toLowerCase()
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="relative w-full max-w-xs">
-          <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-600 uppercase">
-            🔎 Search existing customer
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-2xl font-bold text-navy-900">Delivery Map</h2>
+          <p className="text-sm text-navy-600">
+            Save delivery pins, search customers, and get road directions from the shop.
           </p>
-          <input
-            className={input}
-            placeholder="Type customer name…"
-            value={custQuery}
-            onChange={(e) => searchCustomer(e.target.value)}
-          />
-          {custResults.length > 0 && (
-            <div className="absolute z-[600] mt-1 max-h-72 w-full max-w-xs overflow-y-auto rounded-xl border border-navy-100 bg-white shadow-xl">
-              {custResults.map((c) => (
-                <button
-                  key={`${c.order_id}-${c.name}`}
-                  type="button"
-                  onClick={() => {
-                    if (c.lat && c.lng) {
-                      fly(c.lat, c.lng)
-                      setCustResults([])
-                    } else {
-                      searchAddrFor(c)
-                      setCustResults([])
-                    }
-                  }}
-                  className="block w-full border-b border-navy-50 px-4 py-3 text-left transition last:border-0 hover:bg-gold-500/10"
-                >
-                  <p className="text-sm font-semibold text-navy-900">{c.name}</p>
-                  <p className="text-xs text-navy-600">
-                    📞 {c.phone || '—'} {c.email && `· ✉ ${c.email}`}
-                  </p>
-                  <p className="text-xs text-navy-500">{c.address}</p>
-                  <p className="mt-0.5 text-[11px] text-navy-400">
-                    {c.event_type && `${c.event_type} · `}last order {formatDateTime(c.created_at)}
-                  </p>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
+      </div>
 
-        <div className="relative w-full max-w-xs">
-          <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-600 uppercase">
-            📌 Search address to pin
-          </p>
-          <div className="flex gap-2">
+      {/* Toolbar */}
+      <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="relative w-full max-w-xs">
+            <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-600 uppercase">
+              1. 🔎 Search customer
+            </p>
             <input
               className={input}
-              placeholder="Street, barangay, city…"
-              value={addrQuery}
-              onChange={(e) => setAddrQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), searchAddress())}
+              placeholder="Type customer name…"
+              value={custQuery}
+              onChange={(e) => searchCustomer(e.target.value)}
             />
+            {custResults.length > 0 && (
+              <div className="absolute z-[600] mt-1 max-h-72 w-full max-w-xs overflow-y-auto rounded-xl border border-navy-100 bg-white shadow-xl">
+                {custResults.map((c) => (
+                  <button
+                    key={`${c.order_id}-${c.name}`}
+                    type="button"
+                    onClick={() => selectCustomer(c)}
+                    className="block w-full border-b border-navy-50 px-4 py-3 text-left transition last:border-0 hover:bg-gold-500/10"
+                  >
+                    <p className="text-sm font-semibold text-navy-900">{c.name}</p>
+                    <p className="text-xs text-navy-600">
+                      📞 {c.phone || '—'} {c.email && `· ✉ ${c.email}`}
+                    </p>
+                    <p className="text-xs text-navy-500">{c.address}</p>
+                    <p className="mt-0.5 text-[11px] text-navy-400">
+                      {c.event_type && `${c.event_type} · `}last order {formatDateTime(c.created_at)}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="relative w-full max-w-xs">
+            <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-600 uppercase">
+              2. 📌 Save a pin — search address
+            </p>
+            <div className="flex gap-2">
+              <input
+                className={input}
+                placeholder="Street, barangay, city…"
+                value={addrQuery}
+                onChange={(e) => setAddrQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), searchAddress())}
+              />
+              <button
+                type="button"
+                onClick={searchAddress}
+                className="shrink-0 rounded-xl bg-navy-900 px-4 text-sm font-semibold text-white transition hover:bg-navy-700"
+              >
+                Search
+              </button>
+            </div>
+            {addrResults.length > 0 && (
+              <div className="absolute z-[600] mt-1 max-h-72 w-full max-w-xs overflow-y-auto rounded-xl border border-navy-100 bg-white shadow-xl">
+                {addrResults.map((r) => (
+                  <button
+                    key={r.place_id}
+                    type="button"
+                    onClick={() => openPinForm(r, Number(r.lat), Number(r.lon))}
+                    className="block w-full border-b border-navy-50 px-4 py-2.5 text-left text-xs text-navy-800 transition last:border-0 hover:bg-gold-500/10"
+                  >
+                    📍 {r.display_name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-600 uppercase">
+              2b. or pin manually
+            </p>
             <button
               type="button"
-              onClick={searchAddress}
-              className="shrink-0 rounded-xl bg-navy-900 px-4 text-sm font-semibold text-white transition hover:bg-navy-700"
+              onClick={() => {
+                const next = !manualMode
+                setManualMode(next)
+                manualModeRef.current = next
+              }}
+              className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                manualMode
+                  ? 'bg-gold-500 text-navy-950 shadow-lg'
+                  : 'border border-navy-200 bg-white text-navy-800 hover:border-gold-500'
+              }`}
             >
-              Search
+              {manualMode ? '✔ Manual pin ON — click the map' : '🖐 Manual pin'}
             </button>
           </div>
-          {addrResults.length > 0 && (
-            <div className="absolute z-[600] mt-1 max-h-72 w-full max-w-xs overflow-y-auto rounded-xl border border-navy-100 bg-white shadow-xl">
-              {addrResults.map((r) => (
-                <button
-                  key={r.place_id}
-                  type="button"
-                  onClick={() => openPinForm(r, Number(r.lat), Number(r.lon))}
-                  className="block w-full border-b border-navy-50 px-4 py-2.5 text-left text-xs text-navy-800 transition last:border-0 hover:bg-gold-500/10"
-                >
-                  📍 {r.display_name}
-                </button>
-              ))}
-            </div>
-          )}
+
+          <select className={`${input} w-auto`} value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">All statuses</option>
+            {Object.keys(statusColors).map((v) => (
+              <option key={v} value={v}>{v.replaceAll('_', ' ')}</option>
+            ))}
+          </select>
+
+          <select className={`${input} w-auto`} value={month} onChange={(e) => setMonth(e.target.value)}>
+            <option value="">All months</option>
+            {months.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+
+          <label className="flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm font-medium text-navy-800">
+            <input type="checkbox" className="h-4 w-4 accent-red-500" checked={heat} onChange={(e) => setHeat(e.target.checked)} />
+            Heatmap
+          </label>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            const next = !manualMode
-            setManualMode(next)
-            manualModeRef.current = next
-          }}
-          className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
-            manualMode
-              ? 'bg-gold-500 text-navy-950 shadow-lg'
-              : 'border border-navy-200 bg-white text-navy-800 hover:border-gold-500'
-          }`}
-        >
-          {manualMode ? '✔ Manual pin ON — click the map' : '🖐 Manual pin'}
-        </button>
-
-        <select className={`${input} w-auto`} value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">All statuses</option>
-          {Object.keys(statusColors).map((v) => (
-            <option key={v} value={v}>{v.replaceAll('_', ' ')}</option>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {Object.entries(statusColors).map(([v, c]) => (
+            <span key={v} className="flex items-center gap-1.5 text-xs text-navy-600">
+              <span className="h-3 w-3 rounded-full border-2 border-white shadow" style={{ background: c }} />
+              {v.replaceAll('_', ' ')} ({pins.filter((p) => p.status === v).length})
+            </span>
           ))}
-        </select>
-
-        <select className={`${input} w-auto`} value={month} onChange={(e) => setMonth(e.target.value)}>
-          <option value="">All months</option>
-          {months.map((m) => (
-            <option key={m} value={m}>{m}</option>
-          ))}
-        </select>
-
-        <label className="flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm font-medium text-navy-800">
-          <input type="checkbox" className="h-4 w-4 accent-red-500" checked={heat} onChange={(e) => setHeat(e.target.checked)} />
-          Heatmap
-        </label>
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {Object.entries(statusColors).map(([v, c]) => (
-          <span key={v} className="flex items-center gap-1.5 text-xs text-navy-600">
-            <span className="h-3 w-3 rounded-full border-2 border-white shadow" style={{ background: c }} />
-            {v.replaceAll('_', ' ')} ({pins.filter((p) => p.status === v).length})
-          </span>
-        ))}
-      </div>
-
-      <div className="relative h-[65vh] overflow-hidden rounded-3xl border border-navy-200 shadow-lg">
-        <MapContainer center={HOME} zoom={12} style={{ height: '100%', width: '100%' }} ref={mapRef}>
+      <div className="relative h-[62vh] overflow-hidden rounded-3xl border border-navy-200 shadow-lg">
+        <MapContainer center={HOME} zoom={13} style={{ height: '100%', width: '100%' }} ref={mapRef}>
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <ClickCatcher handlerRef={clickHandlerRef} />
           {heat && <HeatLayer points={heatPoints} />}
+
+          {/* Shop base */}
+          <Marker position={[SHOP.lat, SHOP.lng]} icon={makeShopIcon()}>
+            <Popup>
+              <p className="font-semibold text-navy-900">{SHOP.name}</p>
+              <p className="text-xs text-navy-600">#1 Pelota St., Saint Francis Village, Cainta, Rizal</p>
+            </Popup>
+            <Tooltip direction="top" offset={[0, -20]}>Jan &amp; Jimels (Shop)</Tooltip>
+          </Marker>
+
+          {/* Directions destination marker */}
+          {dest && routePath && (
+            <Marker position={[dest.lat, dest.lng]} icon={makePinIcon('#2563eb', 26)}>
+              <Popup>
+                <p className="font-semibold text-navy-900">{customer.name}</p>
+                <p className="text-xs text-navy-600">Destination</p>
+              </Popup>
+            </Marker>
+          )}
+
+          {/* Delivery pins */}
           {filtered.map(
             (p) =>
               p.lat && p.lng && (
                 <Marker
                   key={`${p.source}-${p.id}`}
                   position={[p.lat, p.lng]}
-                  icon={makePinIcon(statusColors[p.status] || '#999')}
+                  icon={isCustomerPin(p) ? makeHighlightIcon() : makePinIcon(statusColors[p.status] || '#999')}
                   interactive={!manualMode}
                 >
                   <Popup>
@@ -412,6 +516,14 @@ function PinsTab() {
                 </Marker>
               ),
           )}
+
+          {/* Route path */}
+          {routePath && routePath.length > 1 && (
+            <>
+              <Polyline positions={routePath} color="#ffffff" weight={9} opacity={0.75} />
+              <Polyline positions={routePath} color="#2563eb" weight={4.5} opacity={0.95} />
+            </>
+          )}
         </MapContainer>
         {loading && (
           <div className="absolute inset-0 z-[500] flex items-center justify-center bg-white/60">
@@ -420,17 +532,81 @@ function PinsTab() {
         )}
       </div>
 
-      <div className="rounded-2xl border border-navy-100 bg-white p-5 shadow-sm">
-        <p className="text-sm text-navy-700">
-          <span className="font-semibold">{filtered.length}</span> delivery{' '}
-          {filtered.length === 1 ? 'location' : 'locations'}
-          {month && ` in ${month}`}
-          {status && ` (${status.replaceAll('_', ' ')})`}.
-        </p>
-        <p className="mt-1 text-xs text-navy-500">
-          Order pins come from saved orders. Manual pins are saved here or in the Route Planner.
-        </p>
-      </div>
+      {/* Customer panel */}
+      {customer ? (
+        <div className="rounded-2xl border border-gold-500/40 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="font-display text-lg font-bold text-navy-900">{customer.name}</h3>
+              <p className="text-sm text-navy-700">
+                📞 {customer.phone || '—'}
+                {customer.email && ` · ✉ ${customer.email}`}
+              </p>
+              <p className="mt-1 text-xs text-navy-500">{customer.address}</p>
+              <p className="mt-1 text-xs text-navy-500">
+                {customer.event_type && `${customer.event_type} · `}
+                {customerPins.length > 0
+                  ? `${customerPins.length} pinned location${customerPins.length > 1 ? 's' : ''}`
+                  : 'no pinned location yet'}
+                {customer.status && (
+                  <span className="ml-2">
+                    <StatusBadge status={customer.status} />
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {routeInfo && (
+                <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700">
+                  ≈ {routeInfo.km.toFixed(1)} km · {Math.round(routeInfo.min)} min drive
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={showDirections}
+                disabled={routeLoading}
+                className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
+              >
+                {routeLoading ? 'Getting route…' : routePath ? '↻ Refresh directions' : '🧭 Directions from shop'}
+              </button>
+              {routePath && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRoutePath(null)
+                    setRouteInfo(null)
+                    setRouteNote('')
+                  }}
+                  className="rounded-full border border-navy-200 px-5 py-2.5 text-sm font-semibold text-navy-800 transition hover:border-navy-400"
+                >
+                  Clear path
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={clearCustomer}
+                className="rounded-full border border-red-200 px-5 py-2.5 text-sm font-semibold text-red-500 transition hover:bg-red-50"
+              >
+                ✕ Close
+              </button>
+            </div>
+          </div>
+          {routeNote && <p className="mt-2 text-xs text-amber-700">{routeNote}</p>}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-navy-100 bg-white p-5 shadow-sm">
+          <p className="text-sm text-navy-700">
+            <span className="font-semibold">{filtered.length}</span> delivery{' '}
+            {filtered.length === 1 ? 'location' : 'locations'}
+            {month && ` in ${month}`}
+            {status && ` (${status.replaceAll('_', ' ')})`}.
+          </p>
+          <p className="mt-1 text-xs text-navy-500">
+            Search a customer to see their pin and road directions from the shop, or save a new pin
+            by address or manually.
+          </p>
+        </div>
+      )}
 
       {pinForm && (
         <PinFormModal
@@ -449,16 +625,6 @@ function PinsTab() {
       )}
     </div>
   )
-
-  async function searchAddrFor(c) {
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(c.address)}`,
-      )
-      const data = await res.json()
-      if (data[0]) fly(Number(data[0].lat), Number(data[0].lon))
-    } catch {}
-  }
 }
 
 function ClickCatcher({ handlerRef }) {
@@ -509,8 +675,16 @@ function PinFormModal({ pinForm, setPinForm, saving, error, onSave }) {
         </p>
         <div className="mt-4 space-y-3">
           <div>
-            <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Label *</p>
-            <input className={input} value={pinForm.label} onChange={set('label')} placeholder="e.g. Aling Maria's house" required />
+            <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">
+              Label (short name, optional)
+            </p>
+            <input
+              className={input}
+              maxLength={150}
+              value={pinForm.label}
+              onChange={set('label')}
+              placeholder="e.g. Aling Maria's house"
+            />
           </div>
           <div>
             <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Address</p>
@@ -541,431 +715,6 @@ function PinFormModal({ pinForm, setPinForm, saving, error, onSave }) {
           </button>
         </div>
       </form>
-    </div>
-  )
-}
-
-/* ========================= TAB 2: ROUTE PLANNER ========================= */
-
-function RoutesTab() {
-  const [routeDate, setRouteDate] = useState(new Date().toISOString().slice(0, 10))
-  const [routeName, setRouteName] = useState('')
-  const [routeId, setRouteId] = useState(null)
-  const [stops, setStops] = useState([])
-  const [routes, setRoutes] = useState([])
-  const [pathLine, setPathLine] = useState([])
-  const [clickMode, setClickMode] = useState(false)
-  const [addrQuery, setAddrQuery] = useState('')
-  const [addrResults, setAddrResults] = useState([])
-  const [custQuery, setCustQuery] = useState('')
-  const [custResults, setCustResults] = useState([])
-  const [stopForm, setStopForm] = useState(null)
-  const [saving, setSaving] = useState(false)
-  const mapRef = useRef(null)
-  const clickModeRef = useRef(false)
-  const clickHandlerRef = useRef(() => {})
-  const stopFormRef = useRef(null)
-
-  const loadRoutes = useCallback(async () => {
-    try {
-      const { data } = await api.get(`/orders/routes/?date=${routeDate}`)
-      setRoutes(data.results || data)
-    } catch {
-      setRoutes([])
-    }
-  }, [routeDate])
-
-  useEffect(() => {
-    loadRoutes()
-  }, [loadRoutes])
-
-  const clearAll = () => {
-    setStops([])
-    setPathLine([])
-    setRouteId(null)
-    setRouteName('')
-  }
-
-  const loadRoute = (r) => {
-    setRouteId(r.id)
-    setRouteName(r.name || '')
-    setStops(r.stops || [])
-  }
-
-  const fly = (lat, lng) => {
-    if (mapRef.current) mapRef.current.flyTo([lat, lng], 15, { duration: 1 })
-  }
-
-  const addStop = (s) => {
-    setStops((arr) => [...arr, { name: s.name || '', phone: s.phone || '', address: s.address || '', lat: s.lat, lng: s.lng, notes: s.notes || '' }])
-  }
-
-  const updateStop = (idx, k, v) =>
-    setStops((arr) => arr.map((s, i) => (i === idx ? { ...s, [k]: v } : s)))
-
-  const moveStop = (idx, dir) =>
-    setStops((arr) => {
-      const next = [...arr]
-      const j = idx + dir
-      if (j < 0 || j >= next.length) return arr
-      ;[next[idx], next[j]] = [next[j], next[idx]]
-      return next
-    })
-
-  const removeStop = (idx) => setStops((arr) => arr.filter((_, i) => i !== idx))
-
-  // Draw route following real roads (OSRM), fallback straight lines
-  useEffect(() => {
-    if (stops.length < 2) return setPathLine([])
-    const coords = stops.map((s) => `${s.lng},${s.lat}`).join(';')
-    let cancelled = false
-    const t = setTimeout(async () => {
-      try {
-        const res = await fetch(
-          `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`,
-        )
-        const data = await res.json()
-        if (cancelled) return
-        if (data.routes?.[0]?.geometry?.coordinates) {
-          setPathLine(data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]))
-        } else {
-          setPathLine(stops.map((s) => [s.lat, s.lng]))
-        }
-      } catch {
-        if (!cancelled) setPathLine(stops.map((s) => [s.lat, s.lng]))
-      }
-    }, 400)
-    return () => {
-      cancelled = true
-      clearTimeout(t)
-    }
-  }, [stops])
-
-  const searchAddress = async () => {
-    if (!addrQuery.trim()) return
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(addrQuery)}`,
-      )
-      setAddrResults(await res.json())
-    } catch {
-      setAddrResults([])
-    }
-  }
-
-  const searchCustomer = async (q) => {
-    setCustQuery(q)
-    if (!q.trim()) return setCustResults([])
-    try {
-      const { data } = await api.get(`/orders/customers/?search=${encodeURIComponent(q)}`)
-      setCustResults(data)
-    } catch {
-      setCustResults([])
-    }
-  }
-
-  const enableClickMode = (on) => {
-    setClickMode(on)
-    clickModeRef.current = on
-  }
-
-  const onMapClick = (lat, lng) => {
-    if (!clickModeRef.current) return
-    const existing = stopFormRef.current
-    if (existing && existing.lat === null) {
-      setStopForm({ ...existing, lat, lng })
-      reverseGeocode(lat, lng).then((address) => {
-        if (address) setStopForm((f) => (f ? { ...f, address: f.address || address } : f))
-      })
-    } else {
-      setStopForm({ name: '', phone: '', address: '', lat, lng })
-      reverseGeocode(lat, lng).then((address) => {
-        if (address) setStopForm((f) => (f ? { ...f, address: f.address || address } : f))
-      })
-    }
-  }
-  clickHandlerRef.current = onMapClick
-  stopFormRef.current = stopForm
-
-  const saveRoute = async () => {
-    if (stops.length === 0) return alert('Add at least one stop.')
-    setSaving(true)
-    try {
-      const payload = {
-        route_date: routeDate,
-        name: routeName || `Route for ${routeDate}`,
-        stops: stops.map((s) => ({ ...s, seq: undefined })),
-      }
-      if (routeId) await api.put(`/orders/routes/${routeId}/`, payload)
-      else await api.post('/orders/routes/', payload)
-      alert('✓ Route saved!')
-      clearAll()
-      loadRoutes()
-    } catch (err) {
-      const data = err.response?.data
-      const msg =
-        (typeof data === 'object' && data && Object.values(data).flat().join(' ')) ||
-        data ||
-        'Could not save route. Please try again.'
-      alert(msg)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const deleteRoute = async (r) => {
-    if (!window.confirm(`Delete route "${r.name || r.route_date}"?`)) return
-    try {
-      await api.delete(`/orders/routes/${r.id}/`)
-      loadRoutes()
-    } catch (err) {
-      alert(err.response?.data?.detail || 'Could not delete route.')
-    }
-  }
-
-  return (
-    <div className="grid gap-4 xl:grid-cols-4">
-      {/* Controls + stops panel */}
-      <div className="space-y-4 xl:col-span-1">
-        <div className="rounded-2xl border border-navy-100 bg-white p-5 shadow-sm">
-          <p className="text-[11px] font-semibold tracking-wide text-navy-600 uppercase">Delivery date</p>
-          <input type="date" className={`${input} mt-1`} value={routeDate} onChange={(e) => { setRouteDate(e.target.value); clearAll() }} />
-          <p className="mt-3 text-[11px] font-semibold tracking-wide text-navy-600 uppercase">Route name</p>
-          <input className={`${input} mt-1`} placeholder="e.g. Morning deliveries" value={routeName} onChange={(e) => setRouteName(e.target.value)} />
-          <div className="mt-4 space-y-2">
-            <button
-              type="button"
-              onClick={() => enableClickMode(!clickMode)}
-              className={`w-full rounded-full px-5 py-2.5 text-sm font-semibold transition ${
-                clickMode ? 'bg-gold-500 text-navy-950' : 'border border-navy-200 text-navy-800 hover:border-gold-500'
-              }`}
-            >
-              {clickMode ? '✔ Click map to add stop' : '🖐 Manually pin a stop'}
-            </button>
-            <button type="button" onClick={saveRoute} disabled={saving} className={`${btnGold} w-full`}>
-              {saving ? 'Saving…' : '💾 Save Route'}
-            </button>
-            <button
-              type="button"
-              onClick={clearAll}
-              className="w-full rounded-full border border-red-200 px-5 py-2.5 text-sm font-semibold text-red-500 transition hover:bg-red-50"
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-navy-100 bg-white p-5 shadow-sm">
-          <p className="text-[11px] font-semibold tracking-wide text-navy-600 uppercase">🔎 Existing customer</p>
-          <input
-            className={`${input} mt-1`}
-            placeholder="Type customer name…"
-            value={custQuery}
-            onChange={(e) => searchCustomer(e.target.value)}
-          />
-          {custResults.length > 0 && (
-            <div className="mt-1 max-h-64 overflow-y-auto rounded-xl border border-navy-100 bg-white shadow-xl">
-              {custResults.map((c) => (
-                <div key={`${c.order_id}-${c.name}`} className="border-b border-navy-50 p-3 last:border-0">
-                  <p className="text-sm font-semibold text-navy-900">{c.name}</p>
-                  <p className="text-xs text-navy-600">
-                    📞 {c.phone || '—'} {c.email && `· ✉ ${c.email}`}
-                  </p>
-                  <p className="text-xs text-navy-500">{c.address}</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (c.lat && c.lng) {
-                        addStop({ name: c.name, phone: c.phone, address: c.address, lat: c.lat, lng: c.lng })
-                        fly(c.lat, c.lng)
-                      } else {
-                        setStopForm({ name: c.name, phone: c.phone, address: c.address, lat: null, lng: null })
-                        enableClickMode(true)
-                      }
-                      setCustResults([])
-                    }}
-                    className="mt-2 rounded-full bg-navy-900 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-navy-700"
-                  >
-                    + Add to route
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-2xl border border-navy-100 bg-white p-5 shadow-sm">
-          <p className="text-[11px] font-semibold tracking-wide text-navy-600 uppercase">📍 Search address</p>
-          <div className="mt-1 flex gap-2">
-            <input
-              className={input}
-              placeholder="Street, barangay…"
-              value={addrQuery}
-              onChange={(e) => setAddrQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), searchAddress())}
-            />
-            <button type="button" onClick={searchAddress} className="shrink-0 rounded-xl bg-navy-900 px-4 text-sm font-semibold text-white transition hover:bg-navy-700">
-              Go
-            </button>
-          </div>
-          {addrResults.length > 0 && (
-            <div className="mt-1 max-h-64 overflow-y-auto rounded-xl border border-navy-100 bg-white shadow-xl">
-              {addrResults.map((r) => (
-                <button
-                  key={r.place_id}
-                  type="button"
-                  onClick={() => {
-                    const lat = Number(r.lat)
-                    const lng = Number(r.lon)
-                    addStop({ name: '', phone: '', address: r.display_name, lat, lng })
-                    fly(lat, lng)
-                    setAddrResults([])
-                  }}
-                  className="block w-full border-b border-navy-50 px-3 py-2.5 text-left text-xs text-navy-800 transition last:border-0 hover:bg-gold-500/10"
-                >
-                  📍 {r.display_name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-2xl border border-navy-100 bg-white p-5 shadow-sm">
-          <p className="text-[11px] font-semibold tracking-wide text-navy-600 uppercase">
-            Saved routes on {routeDate}
-          </p>
-          {routes.length === 0 ? (
-            <p className="mt-2 text-xs text-navy-500">No routes saved for this date yet.</p>
-          ) : (
-            <div className="mt-2 space-y-2">
-              {routes.map((r) => (
-                <div key={r.id} className="flex items-center justify-between gap-2 rounded-xl border border-navy-100 p-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-navy-900">{r.name || r.route_date}</p>
-                    <p className="text-xs text-navy-500">{r.stops?.length || 0} stops</p>
-                  </div>
-                  <div className="flex shrink-0 gap-1.5">
-                    <button type="button" onClick={() => loadRoute(r)} className="rounded-lg border border-navy-200 px-2.5 py-1 text-[11px] font-semibold text-navy-700 transition hover:border-gold-500 hover:text-gold-600">
-                      Load
-                    </button>
-                    <button type="button" onClick={() => deleteRoute(r)} className="rounded-lg border border-red-200 px-2.5 py-1 text-[11px] font-semibold text-red-500 transition hover:bg-red-50">
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Map + stop list */}
-      <div className="space-y-4 xl:col-span-3">
-        <div className="h-[58vh] overflow-hidden rounded-3xl border border-navy-200 shadow-lg">
-          <MapContainer center={HOME} zoom={12} style={{ height: '100%', width: '100%' }} ref={mapRef}>
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <ClickCatcher handlerRef={clickHandlerRef} />
-            {stops.map((s, i) => (
-              <Marker key={i} position={[s.lat, s.lng]} icon={makeNumberIcon(i + 1)} interactive={!clickMode}>
-                <Popup>
-                  <div className="min-w-[200px]">
-                    <p className="font-semibold text-navy-900">Stop {i + 1}: {s.name || 'Unnamed'}</p>
-                    {s.phone && <p className="text-xs text-navy-600">📞 {s.phone}</p>}
-                    <p className="mt-1 text-xs text-navy-600">{s.address}</p>
-                  </div>
-                </Popup>
-                <Tooltip direction="top" offset={[0, -15]}>
-                  {i + 1}. {s.name || 'Unnamed stop'}
-                </Tooltip>
-              </Marker>
-            ))}
-            {pathLine.length > 1 && <Polyline positions={pathLine} color="#d4af37" weight={5} opacity={0.9} />}
-          </MapContainer>
-        </div>
-
-        <div className="rounded-2xl border border-navy-100 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h3 className="font-display text-base font-bold text-navy-900">
-              Stops ({stops.length})
-            </h3>
-            <p className="text-xs text-navy-500">Road path follows real streets (OSRM).</p>
-          </div>
-          {stops.length === 0 ? (
-            <p className="mt-3 rounded-xl border border-dashed border-navy-200 bg-navy-50/50 px-4 py-6 text-center text-sm text-navy-500">
-              Add stops using search, an existing customer, or by clicking the map.
-            </p>
-          ) : (
-            <div className="mt-3 space-y-2">
-              {stops.map((s, i) => (
-                <div key={i} className="flex items-center gap-3 rounded-xl border border-navy-100 bg-navy-50/40 p-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-navy-900 font-bold text-gold-400">
-                    {i + 1}
-                  </span>
-                  <div className="grid flex-1 gap-2 sm:grid-cols-3">
-                    <input className={input} placeholder="Customer name" value={s.name} onChange={(e) => updateStop(i, 'name', e.target.value)} />
-                    <input className={input} placeholder="Phone" value={s.phone} onChange={(e) => updateStop(i, 'phone', e.target.value)} />
-                    <input className={input} placeholder="Address" value={s.address} onChange={(e) => updateStop(i, 'address', e.target.value)} />
-                  </div>
-                  <div className="flex shrink-0 flex-col gap-1">
-                    <button type="button" onClick={() => moveStop(i, -1)} disabled={i === 0} className="h-6 w-6 rounded border border-navy-200 text-xs font-bold text-navy-600 transition hover:border-gold-500 disabled:opacity-30">▲</button>
-                    <button type="button" onClick={() => moveStop(i, 1)} disabled={i === stops.length - 1} className="h-6 w-6 rounded border border-navy-200 text-xs font-bold text-navy-600 transition hover:border-gold-500 disabled:opacity-30">▼</button>
-                  </div>
-                  <button type="button" onClick={() => removeStop(i)} className="shrink-0 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-bold text-red-500 transition hover:bg-red-50">
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {stopForm && (
-        <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-navy-950/60 p-4 backdrop-blur-sm sm:p-8">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (stopForm.lat === null) return
-              addStop(stopForm)
-              setStopForm(null)
-              enableClickMode(false)
-            }}
-            className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"
-          >
-            <h3 className="font-display text-lg font-bold text-navy-900">New Stop</h3>
-            <p className="text-xs text-navy-500">
-              {stopForm.lat !== null
-                ? `${Number(stopForm.lat).toFixed(5)}, ${Number(stopForm.lng).toFixed(5)}`
-                : 'Click on the map to set the exact location.'}
-            </p>
-            <div className="mt-4 space-y-3">
-              <div>
-                <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Customer / Stop name</p>
-                <input className={input} value={stopForm.name} onChange={(e) => setStopForm({ ...stopForm, name: e.target.value })} placeholder="e.g. Maria Santos" />
-              </div>
-              <div>
-                <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Phone</p>
-                <input className={input} value={stopForm.phone} onChange={(e) => setStopForm({ ...stopForm, phone: e.target.value })} placeholder="09XX-XXX-XXXX" />
-              </div>
-              <div>
-                <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Address</p>
-                <textarea rows={2} className={input} value={stopForm.address} onChange={(e) => setStopForm({ ...stopForm, address: e.target.value })} />
-              </div>
-            </div>
-            <div className="mt-5 flex justify-end gap-3">
-              <button type="button" onClick={() => { setStopForm(null); enableClickMode(false) }} className="rounded-full border border-navy-200 px-5 py-2.5 text-sm font-semibold text-navy-800 transition hover:border-navy-400">
-                Cancel
-              </button>
-              <button type="submit" disabled={stopForm.lat === null} className={btnGold}>
-                Add Stop
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
     </div>
   )
 }
