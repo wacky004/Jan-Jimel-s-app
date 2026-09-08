@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import api from '../../api'
 import { btnGold, formatDateTime, input, StatusBadge } from '../../components/ui'
 import { downloadQuotationPdf } from '../../pdf/quotePdf'
@@ -16,7 +16,7 @@ const sourceFilters = [
   ['manual', 'My Quotations'],
 ]
 
-const emptyLine = { description: '', quantity: 1, unit_price: 0, price_na: false }
+const emptyLine = { description: '', quantity: 1, unit_price: 0, price_na: false, mode: 'list', item_id: null }
 
 const blankQuote = {
   id: null,
@@ -44,6 +44,30 @@ export default function Quotations() {
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [formError, setFormError] = useState('')
+  const [catalog, setCatalog] = useState([])
+  const catalogRef = useRef(catalog)
+  catalogRef.current = catalog
+
+  useEffect(() => {
+    api
+      .get('/items/')
+      .then(({ data }) => setCatalog(data.results || data))
+      .catch(() => setCatalog([]))
+  }, [])
+
+  const groupedCatalog = useMemo(() => {
+    const g = {}
+    for (const it of catalog) {
+      ;(g[it.category_display || 'Others'] ||= []).push(it)
+    }
+    return g
+  }, [catalog])
+
+  const findCatalogItem = (description) => {
+    const needle = String(description || '').toLowerCase().trim()
+    if (!needle) return null
+    return catalog.find((it) => it.name.toLowerCase() === needle) || null
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -70,7 +94,15 @@ export default function Quotations() {
     const saved = q.items || []
     setItems(
       saved.length > 0
-        ? saved.map((i) => ({ ...i, price_na: Boolean(i.price_na) }))
+        ? saved.map((i) => {
+            const match = findCatalogItem(i.description)
+            return {
+              ...i,
+              price_na: Boolean(i.price_na),
+              mode: match ? 'list' : 'custom',
+              item_id: match ? match.id : null,
+            }
+          })
         : [{ ...emptyLine }],
     )
   }
@@ -92,6 +124,28 @@ export default function Quotations() {
 
   const updateLine = (idx, k, v) =>
     setItems((arr) => arr.map((it, i) => (i === idx ? { ...it, [k]: v } : it)))
+
+  const onPickItem = (idx, value) => {
+    if (value === '__custom__') {
+      updateLine(idx, 'mode', 'custom')
+      updateLine(idx, 'item_id', null)
+      updateLine(idx, 'description', '')
+      return
+    }
+    if (!value) {
+      updateLine(idx, 'mode', 'list')
+      updateLine(idx, 'item_id', null)
+      updateLine(idx, 'description', '')
+      return
+    }
+    const item = catalog.find((i) => i.id === Number(value))
+    if (!item) return
+    updateLine(idx, 'mode', 'list')
+    updateLine(idx, 'item_id', Number(value))
+    updateLine(idx, 'description', item.color ? `${item.name} (${item.color})` : item.name)
+    updateLine(idx, 'unit_price', Number(item.rental_price || 0))
+    updateLine(idx, 'price_na', Number(item.rental_price || 0) <= 0)
+  }
 
   const addLine = () => setItems((arr) => [...arr, { ...emptyLine }])
 
@@ -346,15 +400,56 @@ export default function Quotations() {
                   + Add line
                 </button>
               </div>
+              <p className="mb-2 text-xs text-navy-500">
+                Pick from the Pricelist 3 items — or choose <span className="font-semibold">✦ Custom item…</span> at
+                the bottom of the list for special pricing.
+              </p>
               <div className="space-y-2">
                 {items.map((it, idx) => (
                   <div key={idx} className="grid gap-2 sm:grid-cols-12">
-                    <input
-                      className={`${input} sm:col-span-6`}
-                      placeholder="Description (e.g. Chairs with cover)"
-                      value={it.description}
-                      onChange={(e) => updateLine(idx, 'description', e.target.value)}
-                    />
+                    {it.mode === 'list' ? (
+                      <select
+                        className={`${input} sm:col-span-6`}
+                        value={it.item_id || ''}
+                        onChange={(e) => onPickItem(idx, e.target.value)}
+                      >
+                        <option value="">Select from pricelist…</option>
+                        {Object.entries(groupedCatalog).map(([cat, list]) => (
+                          <optgroup key={cat} label={cat}>
+                            {list.map((i) => (
+                              <option key={i.id} value={i.id}>
+                                {i.name}
+                                {i.color ? ` (${i.color})` : ''} —{' '}
+                                {Number(i.rental_price) > 0
+                                  ? `P${Number(i.rental_price).toLocaleString('en-PH')}`
+                                  : 'no rate'}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                        <option value="__custom__">✦ Custom item…</option>
+                      </select>
+                    ) : (
+                      <div className="flex gap-2 sm:col-span-6">
+                        <input
+                          className={input}
+                          placeholder="Custom item description (e.g. Bubble Machine)"
+                          value={it.description}
+                          onChange={(e) => updateLine(idx, 'description', e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateLine(idx, 'mode', 'list')
+                            updateLine(idx, 'item_id', null)
+                          }}
+                          className="shrink-0 rounded-xl border border-navy-200 px-3 text-xs font-semibold text-navy-600 transition hover:border-gold-500"
+                          title="Choose from the pricelist instead"
+                        >
+                          ↩ list
+                        </button>
+                      </div>
+                    )}
                     <input
                       type="number"
                       min={1}
