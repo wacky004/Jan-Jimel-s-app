@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react'
+import { MotionConfig } from 'framer-motion'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth'
 import Footer from './components/Footer'
@@ -56,38 +57,40 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <PublicLayout>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/quote" element={<Quotation />} />
-            <Route path="/admin/login" element={<Login />} />
-            <Route
-              path="/admin"
-              element={
-                <Protected>
-                  <Suspense fallback={<PageLoader />}>
-                    <AdminLayout />
-                  </Suspense>
-                </Protected>
-              }
-            >
-              <Route index element={<Dashboard />} />
-              <Route path="orders" element={<Orders />} />
-              <Route path="inventory" element={<Inventory />} />
-              <Route path="map" element={<DeliveryMap />} />
-              <Route path="quotations" element={<Quotations />} />
+        <MotionConfig reducedMotion="user">
+          <PublicLayout>
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/quote" element={<Quotation />} />
+              <Route path="/admin/login" element={<Login />} />
               <Route
-                path="users"
+                path="/admin"
                 element={
-                  <Protected superOnly>
-                    <Users />
+                  <Protected>
+                    <Suspense fallback={<PageLoader />}>
+                      <AdminLayout />
+                    </Suspense>
                   </Protected>
                 }
-              />
-            </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </PublicLayout>
+              >
+                <Route index element={<Dashboard />} />
+                <Route path="orders" element={<Orders />} />
+                <Route path="inventory" element={<Inventory />} />
+                <Route path="map" element={<DeliveryMap />} />
+                <Route path="quotations" element={<Quotations />} />
+                <Route
+                  path="users"
+                  element={
+                    <Protected superOnly>
+                      <Users />
+                    </Protected>
+                  }
+                />
+              </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </PublicLayout>
+        </MotionConfig>
       </BrowserRouter>
     </AuthProvider>
   )

@@ -117,21 +117,20 @@ function PartyTable() {
   )
 }
 
-function Scene() {
+function Scene({ reduced = false }) {
   const group = useRef()
   useFrame((state) => {
-    if (group.current) {
-      group.current.rotation.y = THREE.MathUtils.lerp(
-        group.current.rotation.y,
-        state.pointer.x * 0.35,
-        0.04,
-      )
-      group.current.rotation.x = THREE.MathUtils.lerp(
-        group.current.rotation.x,
-        -state.pointer.y * 0.12,
-        0.04,
-      )
-    }
+    if (!group.current || reduced) return
+    group.current.rotation.y = THREE.MathUtils.lerp(
+      group.current.rotation.y,
+      state.pointer.x * 0.35,
+      0.04,
+    )
+    group.current.rotation.x = THREE.MathUtils.lerp(
+      group.current.rotation.x,
+      -state.pointer.y * 0.12,
+      0.04,
+    )
   })
   return (
     <group ref={group}>
@@ -145,17 +144,24 @@ function Scene() {
       <GiftBox position={[3.6, 0.3, -1.6]} color="#d4af37" scale={0.85} />
       <GiftBox position={[-3.7, 0.2, -1.2]} color="#14274d" scale={0.7} />
       <GiftBox position={[4.1, 0.1, 1.6]} color="#e05a5a" scale={0.55} />
-      <Sparkles count={140} scale={[11, 7, 6]} size={3.2} speed={0.45} color="#f0d47a" opacity={0.85} />
-      <Sparkles count={60} scale={[11, 7, 6]} size={2} speed={0.3} color="#ffffff" opacity={0.7} />
+      {!reduced && (
+        <>
+          <Sparkles count={140} scale={[11, 7, 6]} size={3.2} speed={0.45} color="#f0d47a" opacity={0.85} />
+          <Sparkles count={60} scale={[11, 7, 6]} size={2} speed={0.3} color="#ffffff" opacity={0.7} />
+        </>
+      )}
     </group>
   )
 }
 
 export default function Hero3D() {
+  const reduced =
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   return (
     <Canvas
       camera={{ position: [0, 1.1, 9.2], fov: 45 }}
       dpr={[1, 1.5]}
+      frameloop={reduced ? 'demand' : 'always'}
       gl={{ antialias: true, alpha: true }}
       style={{ position: 'absolute', inset: 0 }}
     >
@@ -163,7 +169,7 @@ export default function Hero3D() {
       <directionalLight position={[6, 8, 5]} intensity={1.6} color="#fff6e0" />
       <directionalLight position={[-6, 3, -4]} intensity={0.7} color="#cfe0ff" />
       <pointLight position={[0, 5, 3]} intensity={40} color="#f0d47a" />
-      <Scene />
+      <Scene reduced={reduced} />
     </Canvas>
   )
 }

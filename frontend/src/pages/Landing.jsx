@@ -35,34 +35,85 @@ const gallery = [
   '480907470_1066077822204517_1233784821227918688_n.jpg',
 ].map((f) => `/images/${f}`)
 
+const iconProps = {
+  fill: 'none',
+  viewBox: '0 0 24 24',
+  stroke: 'currentColor',
+  strokeWidth: 1.6,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  className: 'h-7 w-7',
+}
+
 const services = [
   {
-    icon: '💍',
+    icon: (
+      <svg {...iconProps}>
+        <path d="M6 3h12l4 6-10 13L2 9z" />
+        <path d="M11 3 8 9l4 13 4-13-3-6" />
+        <path d="M2 9h20" />
+      </svg>
+    ),
     title: 'Weddings & Debuts',
     desc: 'Elegant setups — Tiffany chairs, gold chiavari sets, round tables with luxurious linens and full styling.',
   },
   {
-    icon: '🎂',
+    icon: (
+      <svg {...iconProps}>
+        <path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8" />
+        <path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1" />
+        <path d="M2 21h20" />
+        <path d="M7 8v3M12 8v3M17 8v3" />
+        <path d="M7 4h.01M12 4h.01M17 4h.01" />
+      </svg>
+    ),
     title: 'Birthdays & Christenings',
     desc: 'Fun and colorful themes complete with tables, chairs, décor and everything in between.',
   },
   {
-    icon: '🏢',
+    icon: (
+      <svg {...iconProps}>
+        <rect x="4" y="2" width="16" height="20" rx="2" />
+        <path d="M9 22v-4h6v4" />
+        <path d="M8 6h.01M16 6h.01M12 6h.01" />
+        <path d="M12 10h.01M12 14h.01" />
+        <path d="M16 10h.01M16 14h.01M8 10h.01M8 14h.01" />
+      </svg>
+    ),
     title: 'Corporate Events',
     desc: 'Professional arrangements, sound systems and presentation-ready setups for your company functions.',
   },
   {
-    icon: '🔊',
+    icon: (
+      <svg {...iconProps}>
+        <path d="M11 5 6 9H2v6h4l5 4V5z" />
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+      </svg>
+    ),
     title: 'Sound System & Lights',
     desc: 'PA systems, projectors, party lights — keep your program running and the crowd entertained.',
   },
   {
-    icon: '⛺',
+    icon: (
+      <svg {...iconProps}>
+        <path d="M3.5 21 14 3l10.5 18" />
+        <path d="M9.5 21h11" />
+        <path d="M12 12l-4.5 9" />
+        <path d="M12 12l4.5 9" />
+      </svg>
+    ),
     title: 'Tents & Canopies',
     desc: 'Outdoor events covered. 10x10ft to 20x20ft canopies for any venue, any weather.',
   },
   {
-    icon: '🪑',
+    icon: (
+      <svg {...iconProps}>
+        <path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3" />
+        <path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H7v-2a2 2 0 0 0-4 0z" />
+        <path d="M5 18v2M19 18v2" />
+      </svg>
+    ),
     title: 'Tables, Chairs & Linens',
     desc: '500+ monobloc chairs, banquet and tiffany chairs, table cloths, covers and sashes in many colors.',
   },
@@ -293,9 +344,11 @@ export default function Landing() {
                 transition={{ duration: 0.5, delay: i * 0.08 }}
                 className="group rounded-3xl border border-navy-100 bg-white p-7 shadow-sm transition hover:-translate-y-1.5 hover:border-gold-400 hover:shadow-xl hover:shadow-gold-500/10"
               >
-                <span className="text-4xl">{s.icon}</span>
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-navy-900 text-gold-400 shadow-lg transition group-hover:bg-navy-800 group-hover:text-gold-300">
+                  {s.icon}
+                </span>
                 <h3 className="font-display mt-4 text-xl font-bold text-navy-900">{s.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-navy-800/70">{s.desc}</p>
+                <p className="mt-2 text-sm leading-relaxed text-navy-800/80">{s.desc}</p>
               </motion.div>
             ))}
           </div>
@@ -310,7 +363,7 @@ export default function Landing() {
               Recent Events
             </p>
             <h2 className="font-display mt-3 text-4xl font-bold text-navy-900">Our Work in Action</h2>
-            <p className="mx-auto mt-4 max-w-xl text-sm text-navy-800/70">
+            <p className="mx-auto mt-4 max-w-xl text-sm text-navy-800/80">
               Real setups from real celebrations — weddings, debuts, birthdays and more,
               styled and supplied by Jan &amp; Jimels.
             </p>
@@ -348,7 +401,7 @@ export default function Landing() {
             <h2 className="font-display mt-3 text-4xl font-bold text-navy-900">
               Everything Your Party Needs
             </h2>
-            <p className="mx-auto mt-4 max-w-xl text-sm text-navy-800/70">
+            <p className="mx-auto mt-4 max-w-xl text-sm text-navy-800/80">
               Chairs, tables, linens, tents and more — complete with rates you can trust.
               Prices are subject to change without prior notice.
             </p>
@@ -438,7 +491,7 @@ export default function Landing() {
                   {w.icon}
                 </span>
                 <h3 className="font-display mt-5 text-lg font-bold text-white">{w.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-white/65">{w.desc}</p>
+                <p className="mt-2 text-sm leading-relaxed text-white/75">{w.desc}</p>
               </motion.div>
             ))}
           </div>
@@ -469,7 +522,7 @@ export default function Landing() {
                 </span>
                 <div>
                   <p className="font-semibold text-navy-900">Visit Us</p>
-                  <p className="text-sm text-navy-800/70">
+                  <p className="text-sm text-navy-800/80">
                     #1 Pelota St., Saint Francis Village, Cainta, Rizal
                   </p>
                 </div>
@@ -482,7 +535,7 @@ export default function Landing() {
                 </span>
                 <div>
                   <p className="font-semibold text-navy-900">Call or Text</p>
-                  <p className="text-sm text-navy-800/70">
+                  <p className="text-sm text-navy-800/80">
                     0908-950-3879 · 0999-760-3211
                   </p>
                 </div>
@@ -495,7 +548,7 @@ export default function Landing() {
                 </span>
                 <div>
                   <p className="font-semibold text-navy-900">Email</p>
-                  <p className="text-sm text-navy-800/70">janjimels95@gmail.com</p>
+                  <p className="text-sm text-navy-800/80">janjimels95@gmail.com</p>
                 </div>
               </li>
             </ul>
