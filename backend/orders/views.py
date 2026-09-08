@@ -7,8 +7,12 @@ from rest_framework.views import APIView
 
 from inventory.models import Item
 
-from .models import Order
-from .serializers import OrderSerializer
+from .models import DeliveryPin, DeliveryRoute, Order
+from .serializers import (
+    DeliveryPinSerializer,
+    DeliveryRouteSerializer,
+    OrderSerializer,
+)
 
 
 class OrderListCreateView(generics.ListCreateAPIView):
@@ -52,9 +56,15 @@ class DeliveryPinsView(APIView):
         pins = [
             {
                 'id': o.id,
+                'source': 'order',
                 'lat': float(o.lat),
                 'lng': float(o.lng),
                 'customer_name': o.customer_name,
+                'contact_number': o.contact_number,
+                'email': o.email,
+                'event_type': o.event_type,
+                'event_date': o.event_date,
+                'total_price': float(o.total_price),
                 'address': o.delivery_address,
                 'status': o.status,
                 'delivered_at': o.delivered_at,
@@ -62,7 +72,89 @@ class DeliveryPinsView(APIView):
             }
             for o in qs
         ]
+        manual = DeliveryPin.objects.all()
+        pins += [
+            {
+                'id': p.id,
+                'source': 'manual',
+                'lat': float(p.lat),
+                'lng': float(p.lng),
+                'customer_name': p.label,
+                'contact_number': '',
+                'email': '',
+                'event_type': '',
+                'event_date': p.pin_date,
+                'total_price': 0,
+                'address': p.address,
+                'status': 'manual',
+                'delivered_at': None,
+                'created_at': p.created_at,
+            }
+            for p in manual
+        ]
         return Response(pins)
+
+    def post(self, request):
+        serializer = DeliveryPinSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(created_by=request.user)
+        return Response(serializer.data, status=201)
+
+
+class DeliveryPinDeleteView(generics.DestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = DeliveryPin.objects.all()
+
+
+class CustomerSearchView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        search = request.query_params.get('search', '').strip()
+        if not search:
+            return Response([])
+        orders = Order.objects.filter(customer_name__icontains=search).order_by(
+            '-created_at'
+        )[:50]
+        seen = set()
+        customers = []
+        for o in orders:
+            key = (o.customer_name, o.contact_number)
+            if key in seen:
+                continue
+            seen.add(key)
+            customers.append({
+                'order_id': o.id,
+                'name': o.customer_name,
+                'phone': o.contact_number,
+                'email': o.email,
+                'address': o.delivery_address,
+                'lat': float(o.lat) if o.lat else None,
+                'lng': float(o.lng) if o.lng else None,
+                'event_type': o.event_type,
+                'event_date': o.event_date,
+                'status': o.status,
+                'created_at': o.created_at,
+            })
+        return Response(customers)
+
+
+class DeliveryRouteListCreateView(generics.ListCreateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = DeliveryRouteSerializer
+
+    def get_queryset(self):
+        qs = DeliveryRoute.objects.all().prefetch_related('stops')
+        date = self.request.query_params.get('date')
+        if date:
+            qs = qs.filter(route_date=date)
+        return qs
+
+
+class DeliveryRouteDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = DeliveryRoute.objects.all().prefetch_related('stops')
+    serializer_class = DeliveryRouteSerializer
 
 
 class DashboardView(APIView):
@@ -112,7 +204,7 @@ class OrdersCsvView(APIView):
                 o.id, o.customer_name, o.contact_number, o.email, o.event_type,
                 o.event_date, o.delivery_address, o.lat, o.lng, o.status,
                 o.delivered_at, o.total_price, o.discount, o.deposit, o.balance,
-                '; '.join(f'{i.item.name} x{i.quantity}' for i in o.items.all()),
+                '; '.join(f'{i.display_name} x{i.quantity}' for i in o.items.all()),
                 o.created_at.strftime('%Y-%m-%d %H:%M'),
             ])
         return response

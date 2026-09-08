@@ -290,7 +290,10 @@ function OrderDetail({ order, onClose, onChange, onDelete }) {
               <tbody>
                 {items.map((it, idx) => (
                   <tr key={idx} className="border-t border-navy-50">
-                    <td className="px-4 py-2.5 font-medium text-navy-900">{it.item_name}</td>
+                    <td className="px-4 py-2.5 font-medium text-navy-900">
+                      {it.item_name}{' '}
+                      {it.is_custom && <StatusBadge status="manual" label="Custom" />}
+                    </td>
                     <td className="px-4 py-2.5 text-navy-700">{it.quantity}</td>
                     <td className="px-4 py-2.5">
                       <input

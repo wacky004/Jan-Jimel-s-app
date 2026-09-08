@@ -1,7 +1,16 @@
 import { motion } from 'framer-motion'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import api from '../api'
 import Hero3D from '../components/Hero3D'
+
+const EQUIPMENT_GROUPS = [
+  ['chairs', 'Chairs'],
+  ['tables', 'Tables'],
+  ['linens', 'Linen & Décor'],
+  ['tents', 'Tent'],
+  ['glassware', 'Equipment'],
+]
 
 const gallery = [
   '118991207_969595646799415_6140996894831890068_n.jpg',
@@ -107,6 +116,22 @@ const fadeUp = {
 
 export default function Landing() {
   const [lightbox, setLightbox] = useState(null)
+  const [rates, setRates] = useState([])
+
+  useEffect(() => {
+    api
+      .get('/items/')
+      .then(({ data }) => setRates(data.results || data))
+      .catch(() => {})
+  }, [])
+
+  const rateGroups = useMemo(() => {
+    const g = {}
+    for (const it of rates) {
+      if (Number(it.rental_price) > 0) (g[it.category] ||= []).push(it)
+    }
+    return g
+  }, [rates])
 
   return (
     <div className="overflow-x-clip">
@@ -309,6 +334,83 @@ export default function Landing() {
                 <span className="absolute inset-0 bg-navy-950/0 transition group-hover:bg-navy-950/25" />
               </motion.button>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ================= EQUIPMENT & RATES ================= */}
+      <section id="equipment" className="bg-navy-50/60 py-24">
+        <div className="mx-auto max-w-7xl px-6">
+          <motion.div {...fadeUp} className="text-center">
+            <p className="text-xs font-semibold tracking-[0.25em] text-gold-600 uppercase">
+              Equipment &amp; Rates
+            </p>
+            <h2 className="font-display mt-3 text-4xl font-bold text-navy-900">
+              Everything Your Party Needs
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-sm text-navy-800/70">
+              Chairs, tables, linens, tents and more — complete with rates you can trust.
+              Prices are subject to change without prior notice.
+            </p>
+          </motion.div>
+
+          <div className="mt-12 grid items-start gap-8 lg:grid-cols-5">
+            <motion.div {...fadeUp} className="lg:col-span-2">
+              <img
+                src="/images/equipments.jpg"
+                alt="Jan & Jimels equipment list"
+                className="w-full rounded-3xl border border-navy-100 object-contain shadow-xl shadow-navy-900/10"
+              />
+              <p className="mt-3 text-center text-xs text-navy-500">
+                Our full equipment list — from chairs and tables to glassware and utensils.
+              </p>
+            </motion.div>
+
+            <div className="space-y-4 lg:col-span-3">
+              {EQUIPMENT_GROUPS.map(([cat, title], gi) => {
+                const list = rateGroups[cat]
+                if (!list || list.length === 0) return null
+                return (
+                  <motion.div
+                    key={cat}
+                    {...fadeUp}
+                    transition={{ duration: 0.5, delay: gi * 0.07 }}
+                    className="rounded-2xl border border-navy-100 bg-white p-5 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-display text-base font-bold text-navy-900">{title}</h3>
+                      <span className="text-xs font-semibold tracking-wide text-gold-600 uppercase">
+                        Rate / Rental
+                      </span>
+                    </div>
+                    <div className="mt-3 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+                      {list.map((it) => (
+                        <div key={it.id} className="flex items-baseline justify-between gap-3 border-b border-dotted border-navy-100 py-1 text-sm">
+                          <span className="text-navy-800">{it.name}</span>
+                          <span className="shrink-0 font-semibold text-navy-900">
+                            ₱{Number(it.rental_price).toLocaleString('en-PH')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )
+              })}
+              <motion.div {...fadeUp} transition={{ duration: 0.5, delay: 0.3 }} className="flex flex-wrap gap-4 pt-2">
+                <Link
+                  to="/quote"
+                  className="rounded-full bg-gold-500 px-7 py-3 text-sm font-semibold text-navy-950 shadow-lg shadow-gold-500/25 transition hover:scale-105 hover:bg-gold-400"
+                >
+                  Request a Quote with These Rates
+                </Link>
+                <a
+                  href="tel:09089503879"
+                  className="rounded-full border border-navy-200 px-7 py-3 text-sm font-semibold text-navy-800 transition hover:border-gold-500 hover:text-gold-600"
+                >
+                  Call 0908-950-3879
+                </a>
+              </motion.div>
+            </div>
           </div>
         </div>
       </section>

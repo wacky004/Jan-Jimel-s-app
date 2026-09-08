@@ -6,16 +6,24 @@ A full website for the business with a 3D landing page, public quotation request
 and a complete admin panel that replaces pen-and-paper delivery records:
 
 - **3D landing page** (React Three Fiber hero: balloons, confetti, party table)
-- **Quotation/inquiry form** — customers submit name + phone/email + event details
+- **Equipment & Rates section** — equipments list poster + live rates from the inventory
+- **Quotation/inquiry form** — customers submit name + phone/email + event details; shows the
+  **live Pricelist 2 rate sheet** (auto-generated from inventory, printable PDF) + an
+  "Other equipment" option for items not listed
 - **Orders & Delivery** — record what items, how many, and where they go; status flow:
-  Pending → Confirmed → Out for Delivery → Delivered → Completed (with item return tracking)
-- **Inventory** — chairs, tables, linens/cloths ("used clothes"), covers & sashes, tents,
-  sound & lights, décor, glassware; auto-deducts when delivered, adds back on return,
-  permanently removes missing pieces, low-stock alerts
-- **Delivery Map** — every order location pinned (Leaflet + OpenStreetMap, free, no API key),
-  filter by month/status, heatmap of areas served
+  Pending → Confirmed → Out for Delivery → Delivered → Completed (with item return tracking);
+  **custom equipment** allowed on orders (name/qty/price, no stock effect)
+- **Inventory** — Pricelist 2 items (chairs, tables, linen & décor, tent, equipment);
+  auto-deducts when delivered, adds back on return, permanently removes missing pieces,
+  low-stock alerts; `seed_pricelist` command keeps it in sync with the official pricelist
+- **Delivery Map (2 tabs)**
+  - **Pins** — every order location pinned + manual pins; search addresses (Nominatim),
+    manual pinning, **existing-customer search with contact details**, heatmap, month/status filters
+  - **Route Planner** — plot the day's delivery path: stops via search, existing customer
+    (with phone/address) or manual click; reorder; **road-following route** (OSRM, free);
+    routes saved per date
 - **Users** — Super Admin can create/delete Admins
-- **Reports** — CSV export of orders & inventory, printable PDF quotations
+- **Reports** — CSV export of orders & inventory, printable PDF quotations and pricelist
 
 ## Tech Stack
 
@@ -101,7 +109,14 @@ cd ..\backend
 | POST   | /api/orders/                  | ✓    | Create order                     |
 | PUT    | /api/orders/{id}/             | ✓    | Update order (status, returns)   |
 | DELETE | /api/orders/{id}/             | ✓    | Delete order                     |
-| GET    | /api/orders/pins/             | ✓    | Delivery pins for the map        |
+| GET    | /api/orders/pins/             | ✓    | Delivery pins (order pins + manual pins) |
+| POST   | /api/orders/pins/             | ✓    | Save a manual pin                 |
+| DELETE | /api/orders/pins/{id}/        | ✓    | Delete a manual pin               |
+| GET    | /api/orders/customers/?search= | ✓   | Search existing customers (with contacts) |
+| GET    | /api/orders/routes/?date=     | ✓    | Routes for a date                 |
+| POST   | /api/orders/routes/           | ✓    | Save a delivery route (with stops) |
+| PUT    | /api/orders/routes/{id}/      | ✓    | Update route / reorder stops      |
+| DELETE | /api/orders/routes/{id}/      | ✓    | Delete a route                    |
 | GET    | /api/orders/dashboard/        | ✓    | Dashboard stats                  |
 | GET    | /api/orders/export/orders.csv | ✓    | CSV export                       |
 | GET    | /api/orders/export/inventory.csv | ✓ | CSV export                    |

@@ -57,15 +57,75 @@ class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     item = models.ForeignKey(
         'inventory.Item', on_delete=models.PROTECT, related_name='order_items',
+        null=True, blank=True,
     )
+    custom_name = models.CharField(max_length=150, blank=True)
     quantity = models.PositiveIntegerField(default=1)
     quantity_returned = models.PositiveIntegerField(default=0)
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     notes = models.CharField(max_length=200, blank=True)
 
     @property
+    def display_name(self):
+        return self.custom_name or (self.item.name if self.item else 'Item')
+
+    @property
     def quantity_missing(self):
         return max(self.quantity - self.quantity_returned, 0)
 
     def __str__(self):
-        return f'{self.item.name} x{self.quantity}'
+        return f'{self.display_name} x{self.quantity}'
+
+
+class DeliveryPin(models.Model):
+    label = models.CharField(max_length=150)
+    address = models.TextField(blank=True)
+    lat = models.DecimalField(max_digits=10, decimal_places=7)
+    lng = models.DecimalField(max_digits=10, decimal_places=7)
+    pin_date = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.label
+
+
+class DeliveryRoute(models.Model):
+    route_date = models.DateField()
+    name = models.CharField(max_length=150, blank=True)
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['route_date', '-created_at']
+
+    def __str__(self):
+        return f'{self.name or "Route"} ({self.route_date})'
+
+
+class RouteStop(models.Model):
+    route = models.ForeignKey(DeliveryRoute, on_delete=models.CASCADE, related_name='stops')
+    name = models.CharField(max_length=150)
+    phone = models.CharField(max_length=30, blank=True)
+    address = models.TextField(blank=True)
+    lat = models.DecimalField(max_digits=10, decimal_places=7)
+    lng = models.DecimalField(max_digits=10, decimal_places=7)
+    seq = models.PositiveIntegerField(default=0)
+    notes = models.CharField(max_length=200, blank=True)
+    order = models.ForeignKey(Order, on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        ordering = ['seq']
+
+    def __str__(self):
+        return f'{self.seq}. {self.name}'

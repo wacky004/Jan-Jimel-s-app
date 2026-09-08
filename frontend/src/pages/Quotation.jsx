@@ -4,10 +4,26 @@ import api from '../api'
 
 const eventTypes = ['Wedding', 'Debut', 'Birthday', 'Christening', 'Corporate', 'Anniversary', 'Other']
 
+const PRICELIST_GROUPS = [
+  ['chairs', 'Chairs'],
+  ['tables', 'Tables'],
+  ['linens', 'Linen & Décor'],
+  ['tents', 'Tent'],
+  ['glassware', 'Equipment'],
+  ['covers', 'Covers & Sashes'],
+  ['decor', 'Décor'],
+  ['sound_light', 'Sound & Lights'],
+  ['other', 'Others'],
+]
+
 export default function Quotation() {
   const [items, setItems] = useState([])
   const [selected, setSelected] = useState({})
+  const [others, setOthers] = useState([])
+  const [otherName, setOtherName] = useState('')
+  const [otherQty, setOtherQty] = useState(1)
   const [search, setSearch] = useState('')
+  const [showRates, setShowRates] = useState(true)
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -62,6 +78,62 @@ export default function Quotation() {
     })
   }
 
+  const addOther = () => {
+    const name = otherName.trim()
+    if (!name) return
+    setOthers((o) => [...o, { name, qty: Math.max(1, Number(otherQty) || 1) }])
+    setOtherName('')
+    setOtherQty(1)
+  }
+
+  const downloadPricelist = async () => {
+    const { jsPDF } = await import('jspdf')
+    const doc = new jsPDF()
+    doc.setFontSize(18)
+    doc.text('Jan & Jimels Party Needs', 105, 18, { align: 'center' })
+    doc.setFontSize(11)
+    doc.text('Event Rentals & Supplies - Est. 1995', 105, 25, { align: 'center' })
+    doc.text('#1 Pelota St., Saint Francis Village, Cainta, Rizal', 105, 31, { align: 'center' })
+    doc.text('0908-950-3879 | 0999-760-3211 | janjimels95@gmail.com', 105, 37, { align: 'center' })
+
+    doc.setFontSize(16)
+    doc.text('PRICELIST', 105, 50, { align: 'center' })
+    let y = 62
+    for (const [cat, title] of PRICELIST_GROUPS) {
+      const list = grouped[cat]
+      if (!list || list.length === 0) continue
+      if (y > 250) {
+        doc.addPage()
+        y = 20
+      }
+      doc.setFontSize(13)
+      doc.setTextColor(20, 39, 77)
+      doc.text(title.toUpperCase(), 14, y)
+      doc.setDrawColor(212, 175, 55)
+      doc.line(14, y + 2, 196, y + 2)
+      y += 10
+      doc.setFontSize(10)
+      doc.setTextColor(60, 60, 60)
+      for (const it of list) {
+        if (y > 280) {
+          doc.addPage()
+          y = 20
+        }
+        const price = Number(it.rental_price) > 0 ? `P${Number(it.rental_price).toLocaleString('en-PH')}` : '—'
+        doc.text(it.name, 18, y)
+        doc.text(price, 196, y, { align: 'right' })
+        y += 6
+      }
+      y += 6
+    }
+    y += 4
+    doc.setFontSize(8)
+    doc.setTextColor(120, 120, 120)
+    doc.text('PRICES ARE SUBJECT TO CHANGE WITHOUT PRIOR NOTICE.', 105, y, { align: 'center' })
+    doc.text('PLEASE CONTACT US FOR MORE INFORMATION AND BOOKINGS.', 105, y + 5, { align: 'center' })
+    doc.save('Jan-Jimels-Pricelist.pdf')
+  }
+
   const submit = async (e) => {
     e.preventDefault()
     setError('')
@@ -73,10 +145,11 @@ export default function Quotation() {
       const it = items.find((i) => i.id === Number(id))
       return `${it?.name || 'Item'} x${qty}`
     })
+    const otherLines = others.map((o) => `Other equipment: ${o.name} x${o.qty}`)
     const payload = {
       ...form,
       event_date: form.event_date || null,
-      items_requested: [...lines, form.items_requested].filter(Boolean).join('\n'),
+      items_requested: [...lines, ...otherLines, form.items_requested].filter(Boolean).join('\n'),
     }
     setSubmitting(true)
     try {
@@ -146,6 +219,67 @@ export default function Quotation() {
             onSubmit={submit}
             className="mt-12 space-y-8 rounded-3xl border border-white/10 bg-white p-6 shadow-2xl shadow-navy-950/40 sm:p-10"
           >
+            {/* ============ PRICE LIST (Pricelist 2) ============ */}
+            <div className="rounded-2xl border-2 border-gold-500/60 bg-gradient-to-b from-navy-950 to-navy-900 p-6 text-white">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-lg font-bold">Our Price List</h2>
+                  <p className="text-xs text-gold-400/90">
+                    Jan &amp; Jimels Party Needs · Rates per rental
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={downloadPricelist}
+                    className="rounded-full bg-gold-500 px-5 py-2 text-xs font-bold text-navy-950 transition hover:bg-gold-400"
+                  >
+                    ⬇ Download Pricelist (PDF)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowRates(!showRates)}
+                    className="rounded-full border border-white/25 px-5 py-2 text-xs font-semibold text-white transition hover:border-gold-400"
+                  >
+                    {showRates ? 'Hide Rates' : 'Show Rates'}
+                  </button>
+                </div>
+              </div>
+
+              {showRates && (
+                <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                  {PRICELIST_GROUPS.map(([cat, title]) => {
+                    const list = grouped[cat]
+                    if (!list || list.length === 0) return null
+                    return (
+                      <div key={cat}>
+                        <p className="flex items-center gap-2 text-[11px] font-bold tracking-[0.2em] text-gold-400 uppercase">
+                          <span className="h-px flex-1 bg-gold-500/30" />
+                          {title}
+                          <span className="h-px flex-1 bg-gold-500/30" />
+                        </p>
+                        <ul className="mt-2 space-y-1">
+                          {list.map((it) => (
+                            <li key={it.id} className="flex items-baseline justify-between gap-3 text-sm">
+                              <span className="text-white/85">{it.name}</span>
+                              <span className="flex-1 border-b border-dotted border-white/20" />
+                              <span className="font-semibold text-gold-300">
+                                {Number(it.rental_price) > 0 ? `₱${Number(it.rental_price).toLocaleString('en-PH')}` : '—'}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              <p className="mt-5 text-center text-[10px] tracking-wide text-white/50">
+                PRICES ARE SUBJECT TO CHANGE WITHOUT PRIOR NOTICE. PLEASE CONTACT US FOR MORE
+                INFORMATION AND BOOKINGS.
+              </p>
+            </div>
+
             {/* Contact details */}
             <div>
               <h2 className="font-display text-lg font-bold text-navy-900">Your Details</h2>
@@ -241,6 +375,58 @@ export default function Quotation() {
                         ))}
                       </div>
                     </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Others / specific equipment */}
+            <div>
+              <h2 className="font-display text-lg font-bold text-navy-900">
+                Other Equipment Not Listed
+              </h2>
+              <p className="mt-1 text-xs text-navy-500">
+                Need specific party equipment not in the price list? Add it here.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <input
+                  className={`${input} flex-1 basis-48`}
+                  placeholder="Equipment name (e.g. Bubble Machine, Stage…)"
+                  value={otherName}
+                  onChange={(e) => setOtherName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addOther())}
+                />
+                <input
+                  type="number"
+                  min={1}
+                  className={`${input} w-24`}
+                  value={otherQty}
+                  onChange={(e) => setOtherQty(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={addOther}
+                  className="rounded-xl bg-navy-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-navy-700"
+                >
+                  + Add
+                </button>
+              </div>
+              {others.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {others.map((o, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center gap-2 rounded-full border border-gold-500 bg-gold-500/10 px-4 py-1.5 text-sm text-navy-900"
+                    >
+                      {o.name} x{o.qty}
+                      <button
+                        type="button"
+                        className="font-bold text-red-500 transition hover:text-red-600"
+                        onClick={() => setOthers((arr) => arr.filter((_, j) => j !== i))}
+                      >
+                        ✕
+                      </button>
+                    </span>
                   ))}
                 </div>
               )}

@@ -32,7 +32,11 @@ const empty = {
 }
 
 export default function OrderForm({ initial, onSaved, onClose }) {
-  const [form, setForm] = useState(initial || empty)
+  const [form, setForm] = useState(() =>
+    initial
+      ? { ...initial, items: (initial.items || []).map((i) => ({ ...i, custom: !i.item })) }
+      : empty,
+  )
   const [items, setItems] = useState([])
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -55,7 +59,17 @@ export default function OrderForm({ initial, onSaved, onClose }) {
       ...f,
       items: [
         ...f.items,
-        { item: first?.id || '', quantity: 1, unit_price: first?.rental_price || 0, quantity_returned: 0, notes: '' },
+        { item: first?.id || '', custom: false, custom_name: '', quantity: 1, unit_price: first?.rental_price || 0, quantity_returned: 0, notes: '' },
+      ],
+    }))
+  }
+
+  const addCustomItem = () => {
+    setForm((f) => ({
+      ...f,
+      items: [
+        ...f.items,
+        { item: null, custom: true, custom_name: '', quantity: 1, unit_price: 0, quantity_returned: 0, notes: '' },
       ],
     }))
   }
@@ -67,6 +81,7 @@ export default function OrderForm({ initial, onSaved, onClose }) {
     const it = items.find((i) => i.id === Number(itemId))
     setItemField(idx, 'item', Number(itemId))
     setItemField(idx, 'unit_price', it?.rental_price || 0)
+    setItemField(idx, 'custom', false)
   }
 
   const subtotal = useMemo(
@@ -86,7 +101,8 @@ export default function OrderForm({ initial, onSaved, onClose }) {
     if (!form.contact_number.trim()) return setError('Contact number is required.')
     if (!form.delivery_address.trim()) return setError('Delivery address is required.')
     if (form.items.length === 0) return setError('Add at least one item.')
-    if (form.items.some((i) => !i.item || !i.quantity)) return setError('Every item needs a name and quantity.')
+    if (form.items.some((i) => (!i.item && !(i.custom_name || '').trim()) || !i.quantity))
+      return setError('Every item needs a name and quantity.')
 
     setSaving(true)
     try {
@@ -96,8 +112,10 @@ export default function OrderForm({ initial, onSaved, onClose }) {
         event_time: form.event_time || null,
         delivery_date: form.delivery_date || null,
         total_price: total.toFixed(2),
-        items: form.items.map(({ id, item_name, item_category, quantity_missing, ...rest }) => ({
+        items: form.items.map(({ id, item_name, item_category, quantity_missing, is_custom, ...rest }) => ({
           ...rest,
+          item: rest.custom ? null : Number(rest.item),
+          custom_name: rest.custom ? (rest.custom_name || '').trim() : '',
           quantity: Number(rest.quantity),
           quantity_returned: Number(rest.quantity_returned || 0),
           unit_price: Number(rest.unit_price || 0),
@@ -184,31 +202,45 @@ export default function OrderForm({ initial, onSaved, onClose }) {
           <label className="text-[11px] font-semibold tracking-wide text-navy-700 uppercase">
             Items — What &amp; How Many *
           </label>
-          <button type="button" onClick={addItem} className="text-sm font-semibold text-gold-600 transition hover:text-gold-500">
-            + Add Item
-          </button>
+          <div className="flex gap-3">
+            <button type="button" onClick={addItem} className="text-sm font-semibold text-gold-600 transition hover:text-gold-500">
+              + Add Item
+            </button>
+            <button type="button" onClick={addCustomItem} className="text-sm font-semibold text-navy-700 underline decoration-dotted transition hover:text-navy-500">
+              + Custom equipment
+            </button>
+          </div>
         </div>
 
         <div className="space-y-3">
           {form.items.length === 0 && (
             <p className="rounded-xl border border-dashed border-navy-200 bg-navy-50/50 px-4 py-5 text-center text-sm text-navy-500">
-              No items yet. Click “+ Add Item” to start.
+              No items yet. Click “+ Add Item” or “+ Custom equipment” to start.
             </p>
           )}
           {form.items.map((it, idx) => (
-            <div key={idx} className="grid gap-2 rounded-xl border border-navy-100 bg-navy-50/40 p-3 sm:grid-cols-12">
-              <select
-                className={`${input} sm:col-span-4`}
-                value={it.item}
-                onChange={(e) => onPickItem(idx, e.target.value)}
-              >
-                <option value="">Select item…</option>
-                {items.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.name} ({i.color || '—'}) · {formatPHP(i.rental_price)}
-                  </option>
-                ))}
-              </select>
+            <div key={idx} className={`grid gap-2 rounded-xl border p-3 sm:grid-cols-12 ${it.custom ? 'border-gold-500/50 bg-gold-500/5' : 'border-navy-100 bg-navy-50/40'}`}>
+              {it.custom ? (
+                <input
+                  className={`${input} sm:col-span-4`}
+                  placeholder="Custom equipment name (e.g. Bubble Machine)"
+                  value={it.custom_name}
+                  onChange={(e) => setItemField(idx, 'custom_name', e.target.value)}
+                />
+              ) : (
+                <select
+                  className={`${input} sm:col-span-4`}
+                  value={it.item || ''}
+                  onChange={(e) => onPickItem(idx, e.target.value)}
+                >
+                  <option value="">Select item…</option>
+                  {items.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.name} ({i.color || '—'}) · {formatPHP(i.rental_price)}
+                    </option>
+                  ))}
+                </select>
+              )}
               <input
                 type="number"
                 min={1}
