@@ -5,22 +5,30 @@ from rest_framework.response import Response
 from .models import Quotation
 from .serializers import QuotationSerializer
 
-
 class PublicQuotationCreateView(generics.CreateAPIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = QuotationSerializer
 
+    def perform_create(self, serializer):
+        serializer.save(source=Quotation.WEB, status=Quotation.NEW)
 
-class QuotationListView(generics.ListAPIView):
+
+class QuotationListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = QuotationSerializer
 
     def get_queryset(self):
-        qs = Quotation.objects.all()
+        qs = Quotation.objects.all().prefetch_related('items')
         status = self.request.query_params.get('status')
+        source = self.request.query_params.get('source')
         if status:
             qs = qs.filter(status=status)
+        if source:
+            qs = qs.filter(source=source)
         return qs
+
+    def perform_create(self, serializer):
+        serializer.save(source=Quotation.MANUAL)
 
 
 class QuotationUpdateView(generics.RetrieveUpdateDestroyAPIView):

@@ -3,46 +3,92 @@ import api from '../../api'
 import { btnGold, formatDateTime, input, StatusBadge } from '../../components/ui'
 import { downloadQuotationPdf } from '../../pdf/quotePdf'
 
-const filters = [
-  ['', 'All Requests'],
+const statusFilters = [
+  ['', 'All Statuses'],
   ['new', 'New'],
   ['replied', 'Replied'],
   ['closed', 'Closed'],
 ]
 
-const emptyLine = { description: '', quantity: 1, unit_price: 0 }
+const sourceFilters = [
+  ['', 'All Sources'],
+  ['web', 'Website Requests'],
+  ['manual', 'My Quotations'],
+]
+
+const emptyLine = { description: '', quantity: 1, unit_price: 0, price_na: false }
+
+const blankQuote = {
+  id: null,
+  name: '',
+  phone: '',
+  email: '',
+  event_type: '',
+  event_date: '',
+  venue: '',
+  message: '',
+  status: 'new',
+  reply: '',
+  items_requested: '',
+  items: [],
+}
 
 export default function Quotations() {
   const [list, setList] = useState([])
   const [status, setStatus] = useState('')
+  const [source, setSource] = useState('')
   const [selected, setSelected] = useState(null)
+  const [creating, setCreating] = useState(false)
   const [reply, setReply] = useState('')
   const [items, setItems] = useState([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [formError, setFormError] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
       if (status) params.set('status', status)
+      if (source) params.set('source', source)
       const { data } = await api.get(`/quotations/?${params}`)
       setList(data.results || data)
     } finally {
       setLoading(false)
     }
-  }, [status])
+  }, [status, source])
 
   useEffect(() => {
     load()
   }, [load])
 
-  const open = (q) => {
+  const openEdit = (q) => {
+    setCreating(false)
+    setFormError('')
     setSelected(q)
     setReply(q.reply || '')
     const saved = q.items || []
-    setItems(saved.length > 0 ? saved.map((i) => ({ ...i })) : [{ ...emptyLine }])
+    setItems(
+      saved.length > 0
+        ? saved.map((i) => ({ ...i, price_na: Boolean(i.price_na) }))
+        : [{ ...emptyLine }],
+    )
   }
+
+  const openCreate = () => {
+    setCreating(true)
+    setFormError('')
+    setSelected({ ...blankQuote })
+    setReply('')
+    setItems([{ ...emptyLine }])
+  }
+
+  const closeEditor = () => {
+    setSelected(null)
+    setCreating(false)
+  }
+
+  const setField = (k, v) => setSelected((q) => ({ ...q, [k]: v }))
 
   const updateLine = (idx, k, v) =>
     setItems((arr) => arr.map((it, i) => (i === idx ? { ...it, [k]: v } : it)))
@@ -51,8 +97,11 @@ export default function Quotations() {
 
   const removeLine = (idx) => setItems((arr) => arr.filter((_, i) => i !== idx))
 
-  const total = useMemo(
-    () => items.reduce((s, it) => s + Number(it.quantity || 0) * Number(it.unit_price || 0), 0),
+  const pricedTotal = useMemo(
+    () =>
+      items
+        .filter((it) => !it.price_na)
+        .reduce((s, it) => s + Number(it.quantity || 0) * Number(it.unit_price || 0), 0),
     [items],
   )
 
@@ -61,22 +110,32 @@ export default function Quotations() {
       .filter((it) => it.description.trim())
       .map((it) => {
         const qty = Number(it.quantity || 0)
+        if (it.price_na) return `- ${it.description} x${qty} (price TBA)`
         const unit = Number(it.unit_price || 0)
         return `- ${it.description} x${qty} @ P${unit.toLocaleString('en-PH', { minimumFractionDigits: 2 })} = P${(qty * unit).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
       })
     if (lines.length === 0) return ''
     const name = (selected?.name || 'Customer').split(' ')[0]
+    const totalText =
+      items.filter((it) => !it.price_na && it.description.trim()).length === 0
+        ? 'TOTAL: N/A (price to be confirmed)'
+        : `TOTAL: P${pricedTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
     return [
       `Dear ${name}, thank you for your inquiry! Here is our proposal:`,
       ...lines,
-      `TOTAL: P${total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+      totalText,
       'Mode of payment: 50% Down Payment; Full Payment upon delivery.',
       '- Jan & Jimels Party Needs',
     ].join('\n')
   }
 
-  const save = async (newStatus) => {
+  const save = async () => {
     if (!selected) return
+    setFormError('')
+    if (!selected.name.trim()) {
+      setFormError('Customer name is required.')
+      return
+    }
     setSaving(true)
     try {
       const cleanItems = items
@@ -84,17 +143,31 @@ export default function Quotations() {
         .map((it) => ({
           description: it.description,
           quantity: Number(it.quantity || 0),
-          unit_price: Number(it.unit_price || 0),
+          unit_price: it.price_na ? 0 : Number(it.unit_price || 0),
+          price_na: Boolean(it.price_na),
         }))
-      const finalReply = reply || buildReplyText()
-      await api.put(`/quotations/${selected.id}/`, {
-        ...selected,
-        reply: finalReply,
-        status: newStatus || selected.status,
+      const payload = {
+        name: selected.name,
+        phone: selected.phone || '',
+        email: selected.email || '',
+        event_type: selected.event_type || '',
+        event_date: selected.event_date || null,
+        venue: selected.venue || '',
+        items_requested: selected.items_requested || '',
+        message: selected.message || '',
+        status: selected.status || 'new',
+        reply: reply || buildReplyText(),
         items: cleanItems,
-      })
-      setSelected(null)
+      }
+      if (creating) {
+        await api.post('/quotations/', payload)
+      } else {
+        await api.put(`/quotations/${selected.id}/`, payload)
+      }
+      closeEditor()
       load()
+    } catch (err) {
+      setFormError('Could not save the quotation. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -102,15 +175,15 @@ export default function Quotations() {
 
   const pdfData = (q) => {
     const lines =
-      (q.items && q.items.length > 0) || items.length > 0
-        ? (q.items && q.items.length > 0 ? q.items : items)
+      q.items && q.items.length > 0
+        ? q.items
         : (q.items_requested || '')
             .split('\n')
             .filter(Boolean)
-            .map((line) => ({ description: line, quantity: 1, unit_price: 0 }))
+            .map((line) => ({ description: line, quantity: 1, unit_price: 0, price_na: false }))
     return {
-      id: q.id,
-      date: new Date(q.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }),
+      id: q.id || 'DRAFT',
+      date: new Date(q.created_at || Date.now()).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }),
       name: q.name,
       phone: q.phone,
       email: q.email,
@@ -122,8 +195,6 @@ export default function Quotations() {
     }
   }
 
-  const print = (q) => downloadQuotationPdf(pdfData(q))
-
   const remove = async (q) => {
     if (!window.confirm(`Delete request from ${q.name}?`)) return
     await api.delete(`/quotations/${q.id}/`)
@@ -132,28 +203,36 @@ export default function Quotations() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="font-display text-2xl font-bold text-navy-900">Quotations &amp; Inquiries</h2>
-        <p className="text-sm text-navy-600">
-          Requests sent by customers through the website quotation form.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-2xl font-bold text-navy-900">Quotations &amp; Inquiries</h2>
+          <p className="text-sm text-navy-600">
+            Website requests and quotations you create — with your own prices.
+          </p>
+        </div>
+        <button className={btnGold} onClick={openCreate}>
+          ＋ New Quotation
+        </button>
       </div>
 
-      <select
-        className={`${input} w-auto`}
-        value={status}
-        onChange={(e) => setStatus(e.target.value)}
-      >
-        {filters.map(([v, l]) => (
-          <option key={v || 'all'} value={v}>{l}</option>
-        ))}
-      </select>
+      <div className="flex flex-wrap gap-3">
+        <select className={`${input} w-auto`} value={status} onChange={(e) => setStatus(e.target.value)}>
+          {statusFilters.map(([v, l]) => (
+            <option key={v || 'all'} value={v}>{l}</option>
+          ))}
+        </select>
+        <select className={`${input} w-auto`} value={source} onChange={(e) => setSource(e.target.value)}>
+          {sourceFilters.map(([v, l]) => (
+            <option key={v || 'all'} value={v}>{l}</option>
+          ))}
+        </select>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {loading ? (
-          <p className="text-sm text-navy-500">Loading requests…</p>
+          <p className="text-sm text-navy-500">Loading quotations…</p>
         ) : list.length === 0 ? (
-          <p className="text-sm text-navy-500">No quotation requests yet.</p>
+          <p className="text-sm text-navy-500">No quotations yet. Click “＋ New Quotation” to create one.</p>
         ) : (
           list.map((q) => (
             <div
@@ -167,7 +246,13 @@ export default function Quotations() {
                     {[q.phone, q.email].filter(Boolean).join(' · ') || 'no contact given'}
                   </p>
                 </div>
-                <StatusBadge status={q.status} label={q.status_display} />
+                <div className="flex flex-col items-end gap-1.5">
+                  <StatusBadge status={q.status} label={q.status_display} />
+                  <StatusBadge
+                    status={q.source === 'manual' ? 'confirmed' : 'completed'}
+                    label={q.source === 'manual' ? 'Manual' : 'Web request'}
+                  />
+                </div>
               </div>
               <div className="mt-3 space-y-1 text-sm text-navy-700">
                 <p>
@@ -177,23 +262,25 @@ export default function Quotations() {
                 <p className="line-clamp-2">
                   <span className="font-medium text-navy-900">Venue:</span> {q.venue || '—'}
                 </p>
-                {q.items_requested && (
-                  <p className="line-clamp-3 text-navy-600 whitespace-pre-line">{q.items_requested}</p>
+                {q.items && q.items.length > 0 && (
+                  <p className="line-clamp-3 text-navy-600">
+                    {q.items.map((i) => `${i.description}${i.price_na ? ' (N/A)' : ''}`).join(' · ')}
+                  </p>
                 )}
               </div>
               <p className="mt-3 text-xs text-navy-400">{formatDateTime(q.created_at)}</p>
               <div className="mt-4 flex gap-2">
                 <button
                   className="flex-1 rounded-full bg-navy-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-navy-700"
-                  onClick={() => open(q)}
+                  onClick={() => openEdit(q)}
                 >
-                  Reply
+                  Edit
                 </button>
                 <button
                   className="rounded-full border border-navy-200 px-4 py-2 text-xs font-semibold text-navy-700 transition hover:border-navy-400"
-                  onClick={() => print(q)}
+                  onClick={() => downloadQuotationPdf(pdfData(q))}
                 >
-                  Print
+                  PDF
                 </button>
                 <button
                   className="rounded-full border border-red-200 px-3 py-2 text-xs font-semibold text-red-500 transition hover:bg-red-50"
@@ -208,27 +295,54 @@ export default function Quotations() {
       </div>
 
       {selected && (
-        <Modal title={`Reply to ${selected.name}`} onClose={() => setSelected(null)}>
+        <Modal title={creating ? 'New Quotation' : `Quotation — ${selected.name}`} onClose={closeEditor}>
           <div className="space-y-4">
-            <div className="rounded-xl border border-navy-100 bg-navy-50/50 p-4 text-sm">
-              <p className="font-medium text-navy-900">
-                {selected.event_type || 'Event'} on {selected.event_date || '—'} · {selected.venue || '—'}
-              </p>
-              {selected.items_requested && (
-                <p className="mt-2 text-navy-700 whitespace-pre-line">{selected.items_requested}</p>
-              )}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Customer name *</p>
+                <input className={input} value={selected.name} onChange={(e) => setField('name', e.target.value)} placeholder="Full name" />
+              </div>
+              <div>
+                <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Phone</p>
+                <input className={input} value={selected.phone} onChange={(e) => setField('phone', e.target.value)} placeholder="09XX-XXX-XXXX" />
+              </div>
+              <div>
+                <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Email</p>
+                <input className={input} value={selected.email} onChange={(e) => setField('email', e.target.value)} placeholder="you@email.com" />
+              </div>
+              <div>
+                <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Event type</p>
+                <select className={input} value={selected.event_type} onChange={(e) => setField('event_type', e.target.value)}>
+                  <option value="">Select…</option>
+                  {['Wedding', 'Debut', 'Birthday', 'Christening', 'Corporate', 'Anniversary', 'Fiesta', 'Other'].map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Event date</p>
+                <input type="date" className={input} value={selected.event_date || ''} onChange={(e) => setField('event_date', e.target.value)} />
+              </div>
+              <div>
+                <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Status</p>
+                <select className={input} value={selected.status} onChange={(e) => setField('status', e.target.value)}>
+                  <option value="new">New</option>
+                  <option value="replied">Replied</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <p className="mb-1 text-[11px] font-semibold tracking-wide text-navy-700 uppercase">Venue</p>
+                <input className={input} value={selected.venue} onChange={(e) => setField('venue', e.target.value)} placeholder="Village clubhouse, Cainta…" />
+              </div>
             </div>
 
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-[11px] font-semibold tracking-wide text-navy-700 uppercase">
-                  Quotation line items
+                  Line items &amp; prices
                 </p>
-                <button
-                  type="button"
-                  onClick={addLine}
-                  className="text-sm font-semibold text-gold-600 transition hover:text-gold-500"
-                >
+                <button type="button" onClick={addLine} className="text-sm font-semibold text-gold-600 transition hover:text-gold-500">
                   + Add line
                 </button>
               </div>
@@ -253,11 +367,21 @@ export default function Quotations() {
                       type="number"
                       min={0}
                       step="0.01"
-                      className={`${input} sm:col-span-3`}
-                      placeholder="Unit price"
-                      value={it.unit_price}
+                      className={`${input} sm:col-span-2`}
+                      placeholder="Price"
+                      disabled={it.price_na}
+                      value={it.price_na ? '' : it.unit_price}
                       onChange={(e) => updateLine(idx, 'unit_price', e.target.value)}
                     />
+                    <label className="flex items-center justify-center gap-1.5 rounded-xl border border-navy-100 text-xs font-semibold text-navy-700 sm:col-span-1">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-amber-500"
+                        checked={Boolean(it.price_na)}
+                        onChange={(e) => updateLine(idx, 'price_na', e.target.checked)}
+                      />
+                      N/A
+                    </label>
                     <button
                       type="button"
                       onClick={() => removeLine(idx)}
@@ -271,7 +395,9 @@ export default function Quotations() {
               <p className="mt-2 text-right text-sm">
                 Total:{' '}
                 <span className="font-display text-lg font-bold text-gold-700">
-                  P{total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  {items.some((it) => it.description.trim() && !it.price_na)
+                    ? `P${pricedTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+                    : 'N/A'}
                 </span>
               </p>
             </div>
@@ -279,7 +405,7 @@ export default function Quotations() {
             <div>
               <div className="mb-1 flex items-center justify-between">
                 <p className="text-[11px] font-semibold tracking-wide text-navy-700 uppercase">
-                  Your reply / quotation (sent via phone, email or SMS)
+                  Reply / quotation message
                 </p>
                 <button
                   type="button"
@@ -290,13 +416,17 @@ export default function Quotations() {
                 </button>
               </div>
               <textarea
-                rows={6}
+                rows={5}
                 className={input}
                 placeholder="Dear …, thank you for your inquiry! Here is your quotation: …"
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
               />
             </div>
+
+            {formError && (
+              <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{formError}</p>
+            )}
 
             <div className="flex flex-wrap justify-end gap-3">
               <button
@@ -306,18 +436,11 @@ export default function Quotations() {
                 ⬇ Download Quotation PDF
               </button>
               <button
-                className="rounded-full border border-navy-200 px-5 py-2.5 text-sm font-semibold text-navy-800 transition hover:border-navy-400"
-                disabled={saving}
-                onClick={() => save('replied')}
-              >
-                Save as Replied
-              </button>
-              <button
                 className={btnGold}
                 disabled={saving}
-                onClick={() => save('closed')}
+                onClick={save}
               >
-                {saving ? 'Saving…' : 'Save & Close'}
+                {saving ? 'Saving…' : creating ? 'Create Quotation' : 'Save Quotation'}
               </button>
             </div>
           </div>

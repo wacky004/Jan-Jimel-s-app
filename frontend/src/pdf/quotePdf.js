@@ -59,34 +59,45 @@ function drawFooter(doc) {
 async function drawHeader(doc) {
   const logo = await loadLogo()
   doc.setFillColor(...BRAND.navy)
-  doc.rect(0, 0, 210, 42, 'F')
+  doc.rect(0, 0, 210, 46, 'F')
   doc.setFillColor(...BRAND.gold)
-  doc.rect(0, 42, 210, 1.2, 'F')
+  doc.rect(0, 46, 210, 1.2, 'F')
 
+  // framed logo badge
+  doc.setFillColor(...BRAND.white)
+  doc.setDrawColor(...BRAND.gold)
+  doc.setLineWidth(0.8)
+  doc.roundedRect(10, 9, 28.5, 28.5, 2, 2, 'FD')
   try {
-    doc.addImage(logo, 'JPEG', 11, 8, 27, 27)
+    doc.addImage(logo, 'JPEG', 11.5, 10.5, 25.5, 25.5)
   } catch {
     /* logo failed to load — text header still stands */
   }
 
+  // vertical divider between zones
+  doc.setDrawColor(...BRAND.gold)
+  doc.setLineWidth(0.5)
+  doc.line(108, 10, 108, 38)
+
+  // left zone: name + tagline (width capped well before the divider)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(19)
+  doc.setFontSize(16)
   doc.setTextColor(...BRAND.white)
-  doc.text(SHOP.name, 45, 18)
+  doc.text('JAN & JIMELS', 45, 20)
+  doc.setFontSize(8.5)
+  doc.setTextColor(...BRAND.goldLight)
+  doc.text('PARTY NEEDS | Event Rentals & Supplies | Est. 1995', 45, 26.5)
 
+  // right zone: contact block, width-limited so it can never cross the divider
+  const zoneX = 116
+  const zoneW = 198 - zoneX
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  doc.setTextColor(...BRAND.goldLight)
-  doc.text(SHOP.tagline, 45, 24)
-
-  doc.setFontSize(8)
+  doc.setFontSize(7.8)
   doc.setTextColor(...BRAND.white)
-  doc.text(SHOP.address, 198, 13, { align: 'right' })
-  doc.text(SHOP.tel, 198, 18, { align: 'right' })
-  doc.text(SHOP.email, 198, 23, { align: 'right' })
-  doc.setFontSize(8.5)
-  doc.setTextColor(...BRAND.goldLight)
-  doc.text('No. 01 Pelota Street, New St. Francis Village, San Juan, Cainta, Rizal', 198, 29, { align: 'right' })
+  const addrLines = doc.splitTextToSize(SHOP.address, zoneW)
+  doc.text(addrLines.slice(0, 2), 198, 15, { align: 'right' })
+  doc.text(SHOP.tel, 198, 25.5, { align: 'right' })
+  doc.text(SHOP.email, 198, 30.5, { align: 'right' })
 }
 
 function drawTable(doc, items, startY, totals) {
@@ -115,7 +126,7 @@ function drawTable(doc, items, startY, totals) {
     const desc = it.description || it.item_name || 'Item'
     const qty = Number(it.quantity || 0)
     const unit = Number(it.unit_price || 0)
-    const amount = qty * unit
+    const isNA = Boolean(it.price_na)
     if (y > 246) {
       drawFooter(doc)
       doc.addPage()
@@ -132,8 +143,8 @@ function drawTable(doc, items, startY, totals) {
     const lines = doc.splitTextToSize(desc, 105)
     doc.text(lines, colItem + 3, y)
     doc.text(String(qty), colQty, y, { align: 'right' })
-    doc.text(money(unit), colUnit, y, { align: 'right' })
-    doc.text(money(amount), colAmt, y, { align: 'right' })
+    doc.text(isNA ? 'N/A' : money(unit), colUnit, y, { align: 'right' })
+    doc.text(isNA ? 'N/A' : money(qty * unit), colAmt, y, { align: 'right' })
     y += Math.max(lines.length, 1) * 4.6 + 4
   })
 
@@ -224,7 +235,7 @@ async function buildPdf(kind, data) {
   await drawHeader(doc)
   drawFooter(doc)
 
-  let y = 52
+  let y = 57
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(15)
   doc.setTextColor(...BRAND.navy)
@@ -297,6 +308,11 @@ async function buildPdf(kind, data) {
   })
   y = boxY + boxH * 2 + 4 + 8
 
+  const priced = (data.items || []).filter((it) => !it.price_na)
+  const pricedTotal = priced.reduce(
+    (s, it) => s + Number(it.quantity || 0) * Number(it.unit_price || 0),
+    0,
+  )
   const totals =
     kind === 'order'
       ? [
@@ -305,7 +321,9 @@ async function buildPdf(kind, data) {
           ...(Number(data.deposit) > 0 ? [{ label: 'DEPOSIT', value: money(data.deposit) }] : []),
           { label: 'BALANCE', value: money(data.balance), bold: true, fill: BRAND.goldLight },
         ]
-      : [{ label: 'TOTAL', value: money(data.items.reduce((s, it) => s + Number(it.quantity || 0) * Number(it.unit_price || 0), 0)), bold: true, fill: BRAND.goldLight }]
+      : priced.length === 0
+        ? [{ label: 'TOTAL', value: 'N/A', bold: true, fill: BRAND.goldLight }]
+        : [{ label: 'TOTAL', value: money(pricedTotal), bold: true, fill: BRAND.goldLight }]
 
   y = drawTable(doc, data.items, y, totals)
   y += 4

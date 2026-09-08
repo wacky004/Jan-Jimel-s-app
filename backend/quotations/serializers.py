@@ -4,15 +4,16 @@ from .models import Quotation, QuotationItem
 
 
 class QuotationItemSerializer(serializers.ModelSerializer):
-    amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True, allow_null=True)
 
     class Meta:
         model = QuotationItem
-        fields = ['id', 'description', 'quantity', 'unit_price', 'amount']
+        fields = ['id', 'description', 'quantity', 'unit_price', 'price_na', 'amount']
 
 
 class QuotationSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    source_display = serializers.CharField(source='get_source_display', read_only=True)
     event_date = serializers.DateField(required=False, allow_null=True)
     items = QuotationItemSerializer(many=True, required=False)
 
@@ -20,10 +21,10 @@ class QuotationSerializer(serializers.ModelSerializer):
         model = Quotation
         fields = [
             'id', 'name', 'phone', 'email', 'event_type', 'event_date', 'venue',
-            'items_requested', 'message', 'status', 'status_display', 'reply',
-            'items', 'created_at',
+            'items_requested', 'message', 'status', 'status_display', 'source',
+            'source_display', 'reply', 'items', 'created_at',
         ]
-        read_only_fields = ['id', 'status', 'created_at']
+        read_only_fields = ['id', 'source', 'created_at']
 
     def create(self, validated_data):
         items_data = validated_data.pop('items', [])

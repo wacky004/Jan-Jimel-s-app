@@ -11,6 +11,13 @@ class Quotation(models.Model):
         (CLOSED, 'Closed'),
     ]
 
+    WEB = 'web'
+    MANUAL = 'manual'
+    SOURCE_CHOICES = [
+        (WEB, 'Web Request'),
+        (MANUAL, 'Manual'),
+    ]
+
     name = models.CharField(max_length=150)
     phone = models.CharField(max_length=30, blank=True)
     email = models.EmailField(blank=True)
@@ -20,6 +27,7 @@ class Quotation(models.Model):
     items_requested = models.TextField(blank=True)
     message = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=NEW)
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default=WEB)
     reply = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -39,12 +47,15 @@ class QuotationItem(models.Model):
     description = models.CharField(max_length=200)
     quantity = models.PositiveIntegerField(default=1)
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    price_na = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['id']
 
     @property
     def amount(self):
+        if self.price_na:
+            return None
         return self.quantity * self.unit_price
 
     def __str__(self):
