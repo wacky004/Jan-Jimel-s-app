@@ -88,8 +88,12 @@ function PinsTab() {
   const [custQuery, setCustQuery] = useState('')
   const [custResults, setCustResults] = useState([])
   const [pinForm, setPinForm] = useState(null)
+  const [pinError, setPinError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [savedToast, setSavedToast] = useState(false)
   const mapRef = useRef(null)
+  const manualModeRef = useRef(false)
+  const clickHandlerRef = useRef(() => {})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -158,20 +162,25 @@ function PinsTab() {
   }
 
   const onMapClick = (lat, lng) => {
-    if (!manualMode) return
+    if (!manualModeRef.current) return
+    setManualMode(false)
+    manualModeRef.current = false
+    setPinError('')
+    setPinForm({ label: '', address: '', lat, lng, pin_date: localDate(), notes: '' })
     reverseGeocode(lat, lng).then((address) => {
-      setPinForm({ label: '', address, lat, lng, pin_date: new Date().toISOString().slice(0, 10), notes: '' })
-      setManualMode(false)
+      if (address) setPinForm((f) => (f ? { ...f, address } : f))
     })
   }
+  clickHandlerRef.current = onMapClick
 
   const openPinForm = (place, lat, lng) => {
+    setPinError('')
     setPinForm({
       label: place?.display_name || '',
       address: place?.display_name || '',
       lat,
       lng,
-      pin_date: new Date().toISOString().slice(0, 10),
+      pin_date: localDate(),
       notes: '',
     })
     setAddrResults([])
@@ -180,12 +189,27 @@ function PinsTab() {
 
   const savePin = async (e) => {
     e.preventDefault()
-    if (!pinForm.label.trim()) return
+    setPinError('')
+    if (!pinForm || !pinForm.label.trim()) {
+      setPinError('Please enter a label for the pin.')
+      return
+    }
     setSaving(true)
     try {
       await api.post('/orders/pins/', pinForm)
       setPinForm(null)
+      setSavedToast(true)
+      setTimeout(() => setSavedToast(false), 3500)
       load()
+    } catch (err) {
+      const data = err.response?.data
+      const msg =
+        typeof data === 'string'
+          ? data
+          : Object.values(data || {})
+              .flat()
+              .join(' ') || 'Could not save the pin. Please try again.'
+      setPinError(msg)
     } finally {
       setSaving(false)
     }
@@ -283,7 +307,11 @@ function PinsTab() {
 
         <button
           type="button"
-          onClick={() => setManualMode(!manualMode)}
+          onClick={() => {
+            const next = !manualMode
+            setManualMode(next)
+            manualModeRef.current = next
+          }}
           className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
             manualMode
               ? 'bg-gold-500 text-navy-950 shadow-lg'
@@ -328,12 +356,17 @@ function PinsTab() {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <ClickCatcher onPick={onMapClick} />
+          <ClickCatcher handlerRef={clickHandlerRef} />
           {heat && <HeatLayer points={heatPoints} />}
           {filtered.map(
             (p) =>
               p.lat && p.lng && (
-                <Marker key={`${p.source}-${p.id}`} position={[p.lat, p.lng]} icon={makePinIcon(statusColors[p.status] || '#999')}>
+                <Marker
+                  key={`${p.source}-${p.id}`}
+                  position={[p.lat, p.lng]}
+                  icon={makePinIcon(statusColors[p.status] || '#999')}
+                  interactive={!manualMode}
+                >
                   <Popup>
                     <div className="min-w-[230px]">
                       <p className="font-semibold text-navy-900">{p.customer_name}</p>
@@ -404,8 +437,15 @@ function PinsTab() {
           pinForm={pinForm}
           setPinForm={setPinForm}
           saving={saving}
+          error={pinError}
           onSave={savePin}
         />
+      )}
+
+      {savedToast && (
+        <div className="fixed right-6 bottom-6 z-[80] rounded-full bg-green-600 px-6 py-3 text-sm font-semibold text-white shadow-xl">
+          ✓ Pin saved!
+        </div>
       )}
     </div>
   )
@@ -421,10 +461,10 @@ function PinsTab() {
   }
 }
 
-function ClickCatcher({ onPick }) {
+function ClickCatcher({ handlerRef }) {
   useMapEvents({
     click(e) {
-      onPick(e.latlng.lat, e.latlng.lng)
+      if (handlerRef.current) handlerRef.current(e.latlng.lat, e.latlng.lng)
     },
   })
   return null
@@ -453,7 +493,12 @@ function reverseGeocode(lat, lng) {
     .catch(() => '')
 }
 
-function PinFormModal({ pinForm, setPinForm, saving, onSave }) {
+function localDate() {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+}
+
+function PinFormModal({ pinForm, setPinForm, saving, error, onSave }) {
   const set = (k) => (e) => setPinForm((f) => ({ ...f, [k]: e.target.value }))
   return (
     <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-navy-950/60 p-4 backdrop-blur-sm sm:p-8">
@@ -480,6 +525,13 @@ function PinFormModal({ pinForm, setPinForm, saving, onSave }) {
             <input className={input} value={pinForm.notes} onChange={set('notes')} />
           </div>
         </div>
+
+        {error && (
+          <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </p>
+        )}
+
         <div className="mt-5 flex justify-end gap-3">
           <button type="button" onClick={() => setPinForm(null)} className="rounded-full border border-navy-200 px-5 py-2.5 text-sm font-semibold text-navy-800 transition hover:border-navy-400">
             Cancel
@@ -510,6 +562,9 @@ function RoutesTab() {
   const [stopForm, setStopForm] = useState(null)
   const [saving, setSaving] = useState(false)
   const mapRef = useRef(null)
+  const clickModeRef = useRef(false)
+  const clickHandlerRef = useRef(() => {})
+  const stopFormRef = useRef(null)
 
   const loadRoutes = useCallback(async () => {
     try {
@@ -609,12 +664,28 @@ function RoutesTab() {
     }
   }
 
-  const onMapClick = (lat, lng) => {
-    if (!clickMode) return
-    reverseGeocode(lat, lng).then((address) => {
-      setStopForm({ name: '', phone: '', address, lat, lng })
-    })
+  const enableClickMode = (on) => {
+    setClickMode(on)
+    clickModeRef.current = on
   }
+
+  const onMapClick = (lat, lng) => {
+    if (!clickModeRef.current) return
+    const existing = stopFormRef.current
+    if (existing && existing.lat === null) {
+      setStopForm({ ...existing, lat, lng })
+      reverseGeocode(lat, lng).then((address) => {
+        if (address) setStopForm((f) => (f ? { ...f, address: f.address || address } : f))
+      })
+    } else {
+      setStopForm({ name: '', phone: '', address: '', lat, lng })
+      reverseGeocode(lat, lng).then((address) => {
+        if (address) setStopForm((f) => (f ? { ...f, address: f.address || address } : f))
+      })
+    }
+  }
+  clickHandlerRef.current = onMapClick
+  stopFormRef.current = stopForm
 
   const saveRoute = async () => {
     if (stops.length === 0) return alert('Add at least one stop.')
@@ -627,10 +698,16 @@ function RoutesTab() {
       }
       if (routeId) await api.put(`/orders/routes/${routeId}/`, payload)
       else await api.post('/orders/routes/', payload)
+      alert('✓ Route saved!')
       clearAll()
       loadRoutes()
     } catch (err) {
-      alert(err.response?.data?.detail || 'Could not save route.')
+      const data = err.response?.data
+      const msg =
+        (typeof data === 'object' && data && Object.values(data).flat().join(' ')) ||
+        data ||
+        'Could not save route. Please try again.'
+      alert(msg)
     } finally {
       setSaving(false)
     }
@@ -658,7 +735,7 @@ function RoutesTab() {
           <div className="mt-4 space-y-2">
             <button
               type="button"
-              onClick={() => setClickMode(!clickMode)}
+              onClick={() => enableClickMode(!clickMode)}
               className={`w-full rounded-full px-5 py-2.5 text-sm font-semibold transition ${
                 clickMode ? 'bg-gold-500 text-navy-950' : 'border border-navy-200 text-navy-800 hover:border-gold-500'
               }`}
@@ -703,7 +780,7 @@ function RoutesTab() {
                         fly(c.lat, c.lng)
                       } else {
                         setStopForm({ name: c.name, phone: c.phone, address: c.address, lat: null, lng: null })
-                        setClickMode(true)
+                        enableClickMode(true)
                       }
                       setCustResults([])
                     }}
@@ -790,9 +867,9 @@ function RoutesTab() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <ClickCatcher onPick={onMapClick} />
+            <ClickCatcher handlerRef={clickHandlerRef} />
             {stops.map((s, i) => (
-              <Marker key={i} position={[s.lat, s.lng]} icon={makeNumberIcon(i + 1)}>
+              <Marker key={i} position={[s.lat, s.lng]} icon={makeNumberIcon(i + 1)} interactive={!clickMode}>
                 <Popup>
                   <div className="min-w-[200px]">
                     <p className="font-semibold text-navy-900">Stop {i + 1}: {s.name || 'Unnamed'}</p>
@@ -854,7 +931,7 @@ function RoutesTab() {
               if (stopForm.lat === null) return
               addStop(stopForm)
               setStopForm(null)
-              setClickMode(false)
+              enableClickMode(false)
             }}
             className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"
           >
@@ -879,7 +956,7 @@ function RoutesTab() {
               </div>
             </div>
             <div className="mt-5 flex justify-end gap-3">
-              <button type="button" onClick={() => { setStopForm(null); setClickMode(false) }} className="rounded-full border border-navy-200 px-5 py-2.5 text-sm font-semibold text-navy-800 transition hover:border-navy-400">
+              <button type="button" onClick={() => { setStopForm(null); enableClickMode(false) }} className="rounded-full border border-navy-200 px-5 py-2.5 text-sm font-semibold text-navy-800 transition hover:border-navy-400">
                 Cancel
               </button>
               <button type="submit" disabled={stopForm.lat === null} className={btnGold}>
