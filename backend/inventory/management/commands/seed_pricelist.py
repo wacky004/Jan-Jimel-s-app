@@ -15,7 +15,7 @@ PRICELIST_2 = [
     ('Cocktail Table', 'tables', 40, '', '', 200.00),
     ('Seat Cover', 'linens', 400, 'Black & White', '', 15.00),
     ('Colored Toppings', 'linens', 400, '', '', 30.00),
-    ('Ribbons', 'linens', 600, '', '', 10.00),
+    ('Ribbon', 'linens', 600, '', '', 10.00),
     ('Table Napkins', 'linens', 400, 'Black & White', '', 10.00),
     ('Outdoor Tent', 'tents', 10, '', '', 1500.00),
     ('Plates', 'glassware', 500, '', '', 0.00),
