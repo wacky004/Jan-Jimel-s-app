@@ -1,16 +1,20 @@
-# React + Vite
+# Frontend (React + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+This folder is the React 19 + Vite 8 + Tailwind CSS 4 single-page app for
+Jan & Jimels Party Needs.
 
-Currently, two official plugins are available:
+- Full frontend documentation: `../docs/05-FRONTEND.md`
+- Project entry guide for AI agents: `../AGENTS.md`
+- Theming (navy/gold tokens): `../docs/07-DESIGN-SYSTEM.md`
+- PDF generator: `../docs/06-PDF-GENERATION.md`
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Run
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+```powershell
+npm.cmd install
+# NOTE: the parent folder name contains an apostrophe, so npm scripts fail on
+# Windows — run vite directly:
+node node_modules\vite\bin\vite.js          # dev server on 5173 (proxies /api)
+node node_modules\vite\bin\vite.js build    # production build → ../backend/frontend_dist
+node node_modules\oxlint\bin\oxlint src     # lint
+```

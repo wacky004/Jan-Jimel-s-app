@@ -1,29 +1,49 @@
 # Jan & Jimels Party Needs — Website & Admin System
 
-Event Rentals & Supplies · Est. 1995 · #1 Pelota St., Saint Francis Village, Cainta, Rizal
+Event Rentals & Supplies · Est. 1995 · No. 01 Pelota St., New St. Francis Village, San Juan, Cainta, Rizal
 
 A full website for the business with a 3D landing page, public quotation requests,
 and a complete admin panel that replaces pen-and-paper delivery records:
 
-- **3D landing page** (React Three Fiber hero: balloons, confetti, party table)
-- **Equipment & Rates section** — equipments list poster + live rates from the inventory
+- **3D landing page** (photoreal React Three Fiber hero: banquet table, crystal glassware, balloons)
+- **Equipment & Rates section** — equipment poster + live rates from the inventory
 - **Quotation/inquiry form** — customers submit name + phone/email + event details; shows the
-  **live Pricelist 2 rate sheet** (auto-generated from inventory, printable PDF) + an
+  **live Pricelist 3 rate sheet** (auto-generated from inventory, printable PDF) + an
   "Other equipment" option for items not listed
 - **Orders & Delivery** — record what items, how many, and where they go; status flow:
   Pending → Confirmed → Out for Delivery → Delivered → Completed (with item return tracking);
   **custom equipment** allowed on orders (name/qty/price, no stock effect)
-- **Inventory** — Pricelist 2 items (chairs, tables, linen & décor, tent, equipment);
-  auto-deducts when delivered, adds back on return, permanently removes missing pieces,
-  low-stock alerts; `seed_pricelist` command keeps it in sync with the official pricelist
-- **Delivery Map (2 tabs)**
-  - **Pins** — every order location pinned + manual pins; search addresses (Nominatim),
-    manual pinning, **existing-customer search with contact details**, heatmap, month/status filters
-  - **Route Planner** — plot the day's delivery path: stops via search, existing customer
-    (with phone/address) or manual click; reorder; **road-following route** (OSRM, free);
-    routes saved per date
+- **Inventory** — Pricelist 3 items; auto-deducts when delivered, adds back on return,
+  permanently removes missing pieces, low-stock alerts, per-item photos;
+  `seed_pricelist` keeps it in sync with the official pricelist
+- **Delivery Map** — pins (orders + manual), customer search with contact details,
+  **road directions from the shop** (OSRM, km + minutes), **"All customers" side panel**,
+  **trend badges** (per-customer ×N pins) + heatmap, editable shop base
+- **Quotations** — web requests + admin-created quotes with **line items**, pricelist
+  dropdown, **Custom** items and **N/A** pricing; branded **PDF quotations** and
+  **delivery orders** (letterhead + signature)
 - **Users** — Super Admin can create/delete Admins
-- **Reports** — CSV export of orders & inventory, printable PDF quotations and pricelist
+- **Reports** — CSV export of orders & inventory
+
+> 🤖 **For AI agents:** start with `AGENTS.md`, then the `docs/` suite
+> (index below). `docs/03` API, `docs/04` database/RLS, `docs/09` security.
+
+## Documentation (docs/)
+
+| File | Covers |
+|---|---|
+| `docs/00-PROJECT-OVERVIEW.md` | business, features, quickstart, repo map |
+| `docs/01-ARCHITECTURE.md` | diagram, request flows, dev/prod serving |
+| `docs/02-BACKEND.md` | Django apps, settings, commands, inventory state machine |
+| `docs/03-API-REFERENCE.md` | every endpoint + payloads + throttle scopes |
+| `docs/04-DATABASE.md` | ER, all models/fields, RLS (enabled), multi-tenant path |
+| `docs/05-FRONTEND.md` | pages/components, routing, auth, map module |
+| `docs/06-PDF-GENERATION.md` | quotePdf.js layout + data contracts |
+| `docs/07-DESIGN-SYSTEM.md` | navy/gold tokens, checklist |
+| `docs/08-DEPLOYMENT.md` | Railway steps, env vars, post-deploy checklist |
+| `docs/09-SECURITY.md` | JWT/CSRF, rate limits, guards, RLS, test playbook |
+| `docs/10-DEVELOPMENT-WORKFLOW.md` | commands (Windows quirk), seeds, git flow |
+| `docs/11-SKILLS-EXTENSIONS.md` | .opencode skills usage |
 
 ## Tech Stack
 
@@ -124,7 +144,8 @@ In development the Vite server proxies `/api` to Django, so API calls are same-o
 | GET    | /api/orders/pins/             | ✓    | Delivery pins (order pins + manual pins) |
 | POST   | /api/orders/pins/             | ✓    | Save a manual pin                 |
 | DELETE | /api/orders/pins/{id}/        | ✓    | Delete a manual pin               |
-| GET    | /api/orders/customers/?search= | ✓   | Search existing customers (with contacts) |
+| GET    | /api/orders/customers/?search= | ✓   | Search customers (empty = all) |
+| GET/PUT | /api/orders/shop/            | ✓    | Shop base (directions origin)  |
 | GET    | /api/orders/routes/?date=     | ✓    | Routes for a date                 |
 | POST   | /api/orders/routes/           | ✓    | Save a delivery route (with stops) |
 | PUT    | /api/orders/routes/{id}/      | ✓    | Update route / reorder stops      |
@@ -134,14 +155,17 @@ In development the Vite server proxies `/api` to Django, so API calls are same-o
 | GET    | /api/orders/export/inventory.csv | ✓ | CSV export                    |
 | POST   | /api/quotations/public/submit/ | —   | Public quotation request         |
 | GET    | /api/quotations/public/items/  | —   | Public item list for the form    |
-| GET    | /api/quotations/               | ✓   | List quotation requests          |
-| PUT    | /api/quotations/{id}/          | ✓   | Reply / change status            |
+| GET    | /api/quotations/               | ✓   | List quotations (?status, ?source) |
+| POST   | /api/quotations/               | ✓   | Create manual quotation          |
+| PUT    | /api/quotations/{id}/          | ✓   | Update (items, status, reply)    |
 
 SA = Super Admin only.
 
 Rate limits: anonymous API calls 100/min, admin login 10/min per client, public quotation submission 5/min.
 
 Anonymous visitors only see limited item data (name/category/rate/color/size/photo) — stock levels and notes require an admin login.
+
+PostgreSQL row-level security is **forced** on all business tables (migration `orders/0005_row_level_security`) — see `docs/04-DATABASE.md`.
 
 ## How Inventory Sync Works
 
