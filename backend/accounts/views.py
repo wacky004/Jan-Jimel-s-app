@@ -5,10 +5,11 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from .models import User
-from .serializers import RegisterSerializer, UserSerializer
+from .serializers import RegisterSerializer, StrictLoginSerializer, UserSerializer
 
 
 class LoginThrottledView(TokenObtainPairView):
+    serializer_class = StrictLoginSerializer
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'login'
 

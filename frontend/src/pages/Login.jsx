@@ -17,11 +17,15 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      await login(username, password)
+      await login(username.trim(), password)
       const from = location.state?.from || '/admin'
       navigate(from, { replace: true })
-    } catch {
-      setError('Invalid username or password.')
+    } catch (err) {
+      if (err?.response?.status === 429) {
+        setError('Too many attempts — please try again shortly.')
+      } else {
+        setError('Invalid username or password.')
+      }
     } finally {
       setLoading(false)
     }
@@ -57,6 +61,7 @@ export default function Login() {
             </label>
             <input
               required
+              maxLength={150}
               className="w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-white placeholder-white/40 outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-500/30"
               placeholder="Enter username"
               value={username}
@@ -71,6 +76,7 @@ export default function Login() {
             <input
               required
               type="password"
+              maxLength={128}
               className="w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-white placeholder-white/40 outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-500/30"
               placeholder="Enter password"
               value={password}

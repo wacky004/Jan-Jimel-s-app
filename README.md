@@ -77,6 +77,17 @@ cd ..\backend
 .\.venv\Scripts\python.exe manage.py runserver 8000   # visit http://localhost:8000
 ```
 
+### Local Development & LAN Testing
+
+In development the Vite server proxies `/api` to Django, so API calls are same-origin and CORS is never triggered. To test from another device on your network (phone/laptop):
+
+1. Find your PC's LAN IP (e.g. `192.168.1.10`)
+2. Start Django and Vite with `--host` (Vite: `node node_modules\vite\bin\vite.js --host`)
+3. Set `DJANGO_ALLOWED_HOSTS=192.168.1.10,localhost` and `DJANGO_CORS_ORIGINS=http://192.168.1.10:5173,http://localhost:5173` before starting Django
+4. Open `http://192.168.1.10:5173` on the phone
+
+> The API is CSRF-immune by design: it uses JWT bearer tokens + JSON bodies + a strict CORS allowlist (no cookies involved). CSRF protection applies to Django's built-in admin and any session views.
+
 ## Deploying on Railway
 
 1. Push this repo to GitHub, then **New Project → Deploy from GitHub repo** on Railway.

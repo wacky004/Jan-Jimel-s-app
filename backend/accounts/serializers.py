@@ -1,6 +1,17 @@
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import User
+
+
+class StrictLoginSerializer(TokenObtainPairSerializer):
+    """Login with input caps: oversized values are rejected with clear field
+    errors before any user lookup happens (no timing/enumeration side channel)."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['username'] = serializers.CharField(max_length=150, trim_whitespace=True)
+        self.fields['password'] = serializers.CharField(max_length=128, trim_whitespace=False)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -16,7 +27,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=6)
+    password = serializers.CharField(write_only=True, min_length=6, max_length=128)
 
     class Meta:
         model = User
