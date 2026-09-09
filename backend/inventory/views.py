@@ -1,7 +1,7 @@
 from rest_framework import generics, permissions
 
 from .models import Item
-from .serializers import ItemSerializer
+from .serializers import ItemSerializer, PublicItemSerializer
 
 
 class ItemListCreateView(generics.ListCreateAPIView):
@@ -11,6 +11,11 @@ class ItemListCreateView(generics.ListCreateAPIView):
         if self.request.method == 'POST':
             return [permissions.IsAuthenticated()]
         return [permissions.AllowAny()]
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST' or self.request.user.is_authenticated:
+            return ItemSerializer
+        return PublicItemSerializer
 
     def get_queryset(self):
         qs = Item.objects.all()

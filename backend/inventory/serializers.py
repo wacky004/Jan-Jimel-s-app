@@ -3,6 +3,16 @@ from rest_framework import serializers
 from .models import Item
 
 
+class PublicItemSerializer(serializers.ModelSerializer):
+    """Limited fields for anonymous visitors (no stock levels, no notes)."""
+
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+
+    class Meta:
+        model = Item
+        fields = ['id', 'name', 'category', 'category_display', 'rental_price', 'color', 'size', 'photo_url']
+
+
 class ItemSerializer(serializers.ModelSerializer):
     quantity_available = serializers.IntegerField(read_only=True)
     is_low_stock = serializers.BooleanField(read_only=True)

@@ -1,9 +1,21 @@
 from rest_framework import generics, permissions
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from .models import User
 from .serializers import RegisterSerializer, UserSerializer
+
+
+class LoginThrottledView(TokenObtainPairView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'login'
+
+
+class RefreshThrottledView(TokenRefreshView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'login'
 
 
 class IsSuperAdmin(permissions.BasePermission):

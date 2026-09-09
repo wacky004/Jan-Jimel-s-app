@@ -82,9 +82,10 @@ cd ..\backend
 1. Push this repo to GitHub, then **New Project → Deploy from GitHub repo** on Railway.
 2. Add a **PostgreSQL** plugin (Railway sets `DATABASE_URL` automatically).
 3. Set environment variables in the service settings:
-   - `DJANGO_SECRET_KEY` — a long random string
+   - `DJANGO_SECRET_KEY` — a long random string (required in production)
    - `DJANGO_DEBUG` — `false`
    - `DJANGO_ALLOWED_HOSTS` — `your-app.up.railway.app` (or `*`)
+   - `DJANGO_CORS_ORIGINS` — comma-separated allowed origins (e.g. `https://your-app.up.railway.app`)
 4. `railway.json` handles the build (frontend build + pip install + collectstatic) and
    the start command (migrate + seed + gunicorn). The first deploy seeds default users.
 
@@ -126,6 +127,10 @@ cd ..\backend
 | PUT    | /api/quotations/{id}/          | ✓   | Reply / change status            |
 
 SA = Super Admin only.
+
+Rate limits: anonymous API calls 100/min, admin login 10/min per client, public quotation submission 5/min.
+
+Anonymous visitors only see limited item data (name/category/rate/color/size/photo) — stock levels and notes require an admin login.
 
 ## How Inventory Sync Works
 

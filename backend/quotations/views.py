@@ -1,17 +1,20 @@
 from rest_framework import generics, permissions
+from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
 from .models import Quotation
 from .serializers import QuotationSerializer
 
+
 class PublicQuotationCreateView(generics.CreateAPIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = QuotationSerializer
+    throttle_classes = [AnonRateThrottle, ScopedRateThrottle]
+    throttle_scope = 'quote'
 
     def perform_create(self, serializer):
         serializer.save(source=Quotation.WEB, status=Quotation.NEW)
-
 
 class QuotationListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
