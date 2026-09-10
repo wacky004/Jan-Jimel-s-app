@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../../api'
-import { btnGold, btnGhost, formatPHP, input, label, StatusBadge } from '../../components/ui'
+import { Button, btnGold, btnGhost, CheckboxField, formatPHP, InlineAlert, input, label, SelectField, StatusBadge } from '../../components/ui'
 import { ITEM_PHOTO_OPTIONS } from '../../images'
+import { Pencil, Plus, Trash2, X } from 'lucide-react'
+import { AdminFilters, AdminListing, AdminListState, AdminPageHeader } from '../../components/admin/AdminUI'
+import useAdminData from '../../components/admin/useAdminData'
 
 const categories = [
   ['', 'All Categories'],
@@ -31,33 +34,22 @@ const empty = {
 
 export default function Inventory() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [items, setItems] = useState([])
+  const [actionError, setActionError] = useState('')
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState(null)
   const [showForm, setShowForm] = useState(false)
-  const [loading, setLoading] = useState(true)
 
   const category = searchParams.get('category') || ''
   const lowStockOnly = searchParams.get('low_stock') === 'true'
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const params = new URLSearchParams()
-      if (category) params.set('category', category)
-      if (search) params.set('search', search)
-      if (lowStockOnly) params.set('low_stock', 'true')
-      const { data } = await api.get(`/items/?${params}`)
-      setItems(data.results || data)
-    } finally {
-      setLoading(false)
-    }
-  }, [category, search, lowStockOnly])
-
-  useEffect(() => {
-    const t = setTimeout(load, 250)
-    return () => clearTimeout(t)
-  }, [load])
+  const params = new URLSearchParams()
+  if (category) params.set('category', category)
+  if (search) params.set('search', search)
+  if (lowStockOnly) params.set('low_stock', 'true')
+  const { data, loading, error, load } = useAdminData(`/items/?${params}`, 250)
+  const items = useMemo(() => data || [], [data])
+  const active = [search && `Search: ${search}`, category && `Category: ${categories.find(([value]) => value === category)?.[1] || category}`, lowStockOnly && 'Low stock only'].filter(Boolean)
+  const clear = () => { setSearch(''); setSearchParams({}) }
 
   const summary = useMemo(() => {
     const s = { onHand: 0, inUse: 0, available: 0, value: 0 }
@@ -72,122 +64,36 @@ export default function Inventory() {
 
   const remove = async (i) => {
     if (!window.confirm(`Delete "${i.name}" from inventory?`)) return
-    await api.delete(`/items/${i.id}/`)
-    load()
+    setActionError('')
+    try { await api.delete(`/items/${i.id}/`); load() }
+    catch { setActionError('Could not delete this item. Try again using its Delete action.') }
   }
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl font-bold text-navy-900">Inventory</h2>
-          <p className="text-sm text-navy-600">
-            Track all used clothes, linens and other party needs.
-          </p>
-        </div>
-        <button className={btnGold} onClick={() => { setEditing(null); setShowForm(true) }}>
-          + Add Item
-        </button>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-4">
+      <AdminPageHeader title="Inventory" description="Track equipment, stock and rental rates." action={<Button variant="conversion" onClick={() => { setEditing(null); setShowForm(true) }}><Plus size={18} aria-hidden="true" />Add Item</Button>} />
+      {!loading && !error && <div className="admin-summary" aria-label="Totals for shown inventory">
         <SummaryCard label="On Hand" value={summary.onHand} color="text-navy-900" />
-        <SummaryCard label="In Use (out)" value={summary.inUse} color="text-purple-600" />
-        <SummaryCard label="Available" value={summary.available} color="text-green-600" />
-        <SummaryCard label="Inventory Value" value={formatPHP(summary.value)} color="text-gold-600" />
-      </div>
-
-      <div className="flex flex-wrap gap-3">
-        <input
-          className={`${input} max-w-xs`}
-          placeholder="🔍 Search items…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <select
-          className={`${input} w-auto`}
-          value={category}
-          onChange={(e) => setSearchParams(e.target.value ? { category: e.target.value } : {})}
-        >
-          {categories.map(([v, l]) => (
-            <option key={v || 'all'} value={v}>{l}</option>
-          ))}
-        </select>
-        <label className="flex items-center gap-2 text-sm font-medium text-navy-700">
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-gold-500"
-            checked={lowStockOnly}
-            onChange={(e) =>
-              setSearchParams(e.target.checked ? { ...Object.fromEntries(searchParams), low_stock: 'true' } : {})
-            }
-          />
-          Low stock only
-        </label>
-      </div>
-
-      <div className="overflow-x-auto rounded-2xl border border-navy-100 bg-white shadow-sm">
-        <table className="w-full min-w-[900px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-navy-100 bg-navy-50/60 text-[11px] tracking-wider text-navy-600 uppercase">
-              <th className="px-4 py-3">Item</th>
-              <th className="px-4 py-3">Category</th>
-              <th className="px-4 py-3">On Hand</th>
-              <th className="px-4 py-3">In Use</th>
-              <th className="px-4 py-3">Available</th>
-              <th className="px-4 py-3">Condition</th>
-              <th className="px-4 py-3">Rate / Day</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-navy-500">Loading inventory…</td></tr>
-            ) : items.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-navy-500">No items found.</td></tr>
-            ) : (
-              items.map((i) => (
-                <tr key={i.id} className="border-b border-navy-50 transition last:border-0 hover:bg-gold-500/5">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-navy-900">{i.name}</span>
-                      {i.is_low_stock && <StatusBadge status="pending" label="Low Stock" />}
-                    </div>
-                    <p className="text-xs text-navy-500">
-                      {[i.color, i.size].filter(Boolean).join(' · ') || 'No variant'}
-                    </p>
-                  </td>
-                  <td className="px-4 py-3 text-navy-700">{i.category_display}</td>
-                  <td className="px-4 py-3 font-semibold text-navy-900">{i.quantity_on_hand}</td>
-                  <td className="px-4 py-3 text-purple-600">{i.quantity_in_use}</td>
-                  <td className="px-4 py-3 font-semibold text-green-600">{i.quantity_available}</td>
-                  <td className="px-4 py-3">
-                    <StatusBadge
-                      status={i.condition === 'good' ? 'delivered' : i.condition === 'used' ? 'confirmed' : 'cancelled'}
-                      label={i.condition_display}
-                    />
-                  </td>
-                  <td className="px-4 py-3 text-navy-800">{formatPHP(i.rental_price)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      className="rounded-lg border border-navy-200 px-3 py-1.5 text-xs font-semibold text-navy-700 transition hover:border-gold-500 hover:text-gold-600"
-                      onClick={() => { setEditing(i); setShowForm(true) }}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="ml-2 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-500 transition hover:bg-red-50"
-                      onClick={() => remove(i)}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+        <SummaryCard label="In Use (out)" value={summary.inUse} color="admin-info" />
+        <SummaryCard label="Available" value={summary.available} color="admin-success" />
+        <SummaryCard label="Inventory Value" value={formatPHP(summary.value)} color="admin-gold" />
+      </div>}
+      <AdminFilters search={search} onSearch={setSearch} searchLabel="Search inventory" active={active} onClear={clear}>
+        <SelectField label="Category" value={category} onChange={(e) => setSearchParams(e.target.value ? { category: e.target.value } : {})}>{categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</SelectField>
+        <CheckboxField label="Low stock only" checked={lowStockOnly} onChange={(e) => setSearchParams(e.target.checked ? { ...Object.fromEntries(searchParams), low_stock: 'true' } : {})} />
+      </AdminFilters>
+      {actionError && <InlineAlert tone="error">{actionError}</InlineAlert>}
+      <AdminListState name="Inventory items" loading={loading} error={error} count={items.length} filtered={active.length > 0} onRetry={load} onClear={clear}>
+        <AdminListing name="Inventory" records={items} columns={[
+          { key: 'name', label: 'Item', render: (i) => <>{i.name}{i.is_low_stock && <StatusBadge status="pending" label="Low Stock" />}<span className="admin-secondary">{[i.color, i.size].filter(Boolean).join(' · ') || 'No variant'}</span></> },
+          { key: 'category', label: 'Category', render: (i) => i.category_display },
+          { key: 'onHand', label: 'On Hand', render: (i) => i.quantity_on_hand },
+          { key: 'inUse', label: 'In Use', render: (i) => <span className="admin-info">{i.quantity_in_use}</span> },
+          { key: 'available', label: 'Available', render: (i) => <span className="admin-success">{i.quantity_available}</span> },
+          { key: 'condition', label: 'Condition', render: (i) => <StatusBadge status={i.condition === 'good' ? 'delivered' : i.condition === 'used' ? 'confirmed' : 'cancelled'} label={i.condition_display} /> },
+          { key: 'rate', label: 'Rate / Day', render: (i) => formatPHP(i.rental_price) },
+        ]} actions={(i) => <><Button variant="secondary" aria-label={`Edit ${i.name}`} onClick={() => { setEditing(i); setShowForm(true) }}><Pencil size={16} aria-hidden="true" />Edit</Button><Button variant="danger" aria-label={`Delete ${i.name}`} onClick={() => remove(i)}><Trash2 size={16} aria-hidden="true" />Delete</Button></>} />
+      </AdminListState>
 
       {showForm && (
         <Modal onClose={() => setShowForm(false)} title={editing ? 'Edit Item' : 'Add Item'}>
@@ -299,7 +205,7 @@ function ItemForm({ initial, onClose, onSaved }) {
               onClick={() => setForm((f) => ({ ...f, photo_url: '' }))}
               className="rounded-full border border-red-200 px-4 py-1.5 text-xs font-semibold text-red-500 transition hover:bg-red-50"
             >
-              ✕ Remove photo
+              <X size={16} className="admin-inline-icon" aria-hidden="true" /> Remove photo
             </button>
           ) : (
             <span className="text-xs text-navy-400">No photo assigned</span>
@@ -351,9 +257,7 @@ function Modal({ children, title, onClose }) {
         <div className="flex items-center justify-between rounded-t-3xl border-b border-navy-100 bg-white px-6 py-4">
           <h3 className="font-display text-lg font-bold text-navy-900">{title}</h3>
           <button onClick={onClose} className="text-navy-500 transition hover:text-navy-900" aria-label="Close">
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X size={24} aria-hidden="true" />
           </button>
         </div>
         <div className="p-6">{children}</div>

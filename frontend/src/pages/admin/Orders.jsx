@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../../api'
-import { btnGold, btnGhost, formatDateTime, formatPHP, input, StatusBadge } from '../../components/ui'
+import { Button, btnGhost, formatDateTime, formatPHP, InlineAlert, SelectField, StatusBadge } from '../../components/ui'
 import { downloadOrderPdf } from '../../pdf/quotePdf'
 import OrderForm from './OrderForm'
+import { ArrowRight, Eye, MapPin, Pencil, Plus, Printer, X } from 'lucide-react'
+import { AdminFilters, AdminListing, AdminListState, AdminPageHeader } from '../../components/admin/AdminUI'
+import useAdminData from '../../components/admin/useAdminData'
 
 const statuses = [
   ['', 'All Statuses'],
@@ -17,8 +20,8 @@ const statuses = [
 
 export default function Orders() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [orders, setOrders] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [actionError, setActionError] = useState(null)
+  const [opening, setOpening] = useState(null)
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -26,29 +29,21 @@ export default function Orders() {
 
   const status = searchParams.get('status') || ''
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const params = new URLSearchParams()
-      if (status) params.set('status', status)
-      if (search) params.set('search', search)
-      const { data } = await api.get(`/orders/?${params}`)
-      setOrders(data.results || data)
-    } finally {
-      setLoading(false)
-    }
-  }, [status, search])
-
-  useEffect(() => {
-    const t = setTimeout(load, 250)
-    return () => clearTimeout(t)
-  }, [load])
+  const params = new URLSearchParams()
+  if (status) params.set('status', status)
+  if (search) params.set('search', search)
+  const { data, loading, error, load } = useAdminData(`/orders/?${params}`, 250)
+  const orders = data || []
+  const active = [search && `Search: ${search}`, status && `Status: ${statuses.find(([value]) => value === status)?.[1] || status}`].filter(Boolean)
+  const clear = () => { setSearch(''); setSearchParams({}) }
 
   const openDetail = async (o) => {
+    setOpening(o.id); setActionError(null)
     try {
       const { data } = await api.get(`/orders/${o.id}/`)
       setDetail(data)
-    } catch {}
+    } catch { setActionError({ text: 'Order details could not be loaded.', retry: () => openDetail(o) }) }
+    finally { setOpening(null) }
   }
 
   const remove = async (o) => {
@@ -60,102 +55,22 @@ export default function Orders() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl font-bold text-navy-900">Orders &amp; Delivery</h2>
-          <p className="text-sm text-navy-600">
-            Record deliveries — what items, how many, and where they go.
-          </p>
-        </div>
-        <button className={btnGold} onClick={() => { setEditing(null); setShowForm(true) }}>
-          + New Order
-        </button>
-      </div>
-
-      <div className="flex flex-wrap gap-3">
-        <input
-          className={`${input} max-w-xs`}
-          placeholder="🔍 Search customer, address, number…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <select
-          className={`${input} w-auto`}
-          value={status}
-          onChange={(e) => setSearchParams(e.target.value ? { status: e.target.value } : {})}
-        >
-          {statuses.map(([v, l]) => (
-            <option key={v || 'all'} value={v}>{l}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="overflow-x-auto rounded-2xl border border-navy-100 bg-white shadow-sm">
-        <table className="w-full min-w-[860px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-navy-100 bg-navy-50/60 text-[11px] tracking-wider text-navy-600 uppercase">
-              <th className="px-4 py-3">Customer</th>
-              <th className="px-4 py-3">Event</th>
-              <th className="px-4 py-3">Address</th>
-              <th className="px-4 py-3">Items</th>
-              <th className="px-4 py-3">Total</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-navy-500">Loading orders…</td></tr>
-            ) : orders.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-navy-500">
-                  No orders found. Click “+ New Order” to record your first delivery.
-                </td>
-              </tr>
-            ) : (
-              orders.map((o) => (
-                <tr
-                  key={o.id}
-                  className="cursor-pointer border-b border-navy-50 transition last:border-0 hover:bg-gold-500/5"
-                  onClick={() => openDetail(o)}
-                >
-                  <td className="px-4 py-3.5">
-                    <p className="font-semibold text-navy-900">{o.customer_name}</p>
-                    <p className="text-xs text-navy-500">{o.contact_number}</p>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <p className="text-navy-800">{o.event_type || '—'}</p>
-                    <p className="text-xs text-navy-500">{o.event_date || ''}</p>
-                  </td>
-                  <td className="max-w-[220px] px-4 py-3.5">
-                    <p className="truncate text-navy-700" title={o.delivery_address}>
-                      {o.delivery_address}
-                    </p>
-                    {o.lat && (
-                      <p className="text-xs text-gold-600">📍 pinned on map</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3.5 text-navy-700">
-                    {o.items?.reduce((s, i) => s + Number(i.quantity), 0) || 0} pcs
-                  </td>
-                  <td className="px-4 py-3.5 font-semibold text-navy-900">{formatPHP(o.total_price)}</td>
-                  <td className="px-4 py-3.5">
-                    <StatusBadge status={o.status} label={o.status_display} />
-                  </td>
-                  <td className="px-4 py-3.5 text-right">
-                    <button
-                      className="rounded-lg border border-navy-200 px-3 py-1.5 text-xs font-semibold text-navy-700 transition hover:border-gold-500 hover:text-gold-600"
-                      onClick={(e) => { e.stopPropagation(); setEditing(o); setShowForm(true) }}
-                    >
-                      Edit
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <AdminPageHeader title="Orders & Delivery" description="Record deliveries — what items, how many, and where they go." action={<Button variant="conversion" onClick={() => { setEditing(null); setShowForm(true) }}><Plus size={18} aria-hidden="true" />New Order</Button>} />
+      <AdminFilters search={search} onSearch={setSearch} searchLabel="Search orders" searchHint="Customer, address or contact number." active={active} onClear={clear}>
+        <SelectField label="Order status" value={status} onChange={(e) => setSearchParams(e.target.value ? { status: e.target.value } : {})}>{statuses.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</SelectField>
+      </AdminFilters>
+      {actionError && <InlineAlert tone="error" action={<Button onClick={actionError.retry}>Try again</Button>}>{actionError.text}</InlineAlert>}
+      {opening !== null && <p role="status">Loading order details…</p>}
+      <AdminListState name="Orders" loading={loading} error={error} count={orders.length} filtered={active.length > 0} onRetry={load} onClear={clear}>
+        <AdminListing name="Orders" records={orders} columns={[
+          { key: 'customer', label: 'Customer', render: (o) => <>{o.customer_name}<span className="admin-secondary">{o.contact_number}</span></> },
+          { key: 'event', label: 'Event', render: (o) => <>{o.event_type || '—'}<span className="admin-secondary">{o.event_date || ''}</span></> },
+          { key: 'address', label: 'Address', render: (o) => <>{o.delivery_address}{o.lat && <span className="admin-secondary"><MapPin size={14} className="admin-inline-icon" aria-hidden="true" />Pinned on map</span>}</> },
+          { key: 'items', label: 'Items', render: (o) => <>{o.items?.reduce((s, i) => s + Number(i.quantity), 0) || 0} pcs</> },
+          { key: 'total', label: 'Total', render: (o) => formatPHP(o.total_price) },
+          { key: 'status', label: 'Status', render: (o) => <StatusBadge status={o.status} label={o.status_display} /> },
+        ]} actions={(o) => <><Button variant="secondary" aria-label={`View order ${o.id} for ${o.customer_name}`} disabled={opening !== null} onClick={() => openDetail(o)}><Eye size={16} aria-hidden="true" />View</Button><Button variant="ghost" aria-label={`Edit order ${o.id} for ${o.customer_name}`} onClick={() => { setEditing(o); setShowForm(true) }}><Pencil size={16} aria-hidden="true" />Edit</Button></>} />
+      </AdminListState>
 
       {showForm && (
         <Modal onClose={() => setShowForm(false)} title={editing ? 'Edit Order' : 'New Order'}>
@@ -254,7 +169,7 @@ function OrderDetail({ order, onClose, onChange, onDelete }) {
           <p className="mt-1 text-sm font-medium text-navy-900">{order.delivery_address}</p>
           {order.lat && (
             <p className="mt-1 text-xs text-gold-600">
-              📍 Pinned: {Number(order.lat).toFixed(5)}, {Number(order.lng).toFixed(5)}
+              <MapPin size={16} className="admin-inline-icon" aria-hidden="true" /> Pinned: {Number(order.lat).toFixed(5)}, {Number(order.lng).toFixed(5)}
             </p>
           )}
         </div>
@@ -320,7 +235,7 @@ function OrderDetail({ order, onClose, onChange, onDelete }) {
                 disabled={saving}
                 onClick={() => setStatusAndSave(nextStatus[status])}
               >
-                → {nextStatus[status].replaceAll('_', ' ')}
+                <ArrowRight size={16} className="admin-inline-icon" aria-hidden="true" /> {nextStatus[status].replaceAll('_', ' ')}
               </button>
             )}
             <button
@@ -334,7 +249,7 @@ function OrderDetail({ order, onClose, onChange, onDelete }) {
               className="rounded-full bg-navy-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-navy-700"
               onClick={print}
             >
-              🖨 Print PDF
+              <Printer size={16} className="admin-inline-icon" aria-hidden="true" /> Print PDF
             </button>
           </div>
         </div>
@@ -381,9 +296,7 @@ function Modal({ children, title, onClose, wide }) {
         <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-3xl border-b border-navy-100 bg-white/95 px-6 py-4 backdrop-blur">
           <h3 className="font-display text-lg font-bold text-navy-900">{title}</h3>
           <button onClick={onClose} className="text-navy-500 transition hover:text-navy-900" aria-label="Close">
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X size={24} aria-hidden="true" />
           </button>
         </div>
         <div className="max-h-[calc(100vh-10rem)] overflow-y-auto p-6">{children}</div>
