@@ -27,13 +27,16 @@ backend/                  Django 5.2 + DRF + SimpleJWT API (see docs/02-BACKEND.
 frontend/                 React 19 + Vite 8 + Tailwind 4 (see docs/05-FRONTEND.md)
   src/pages/              Landing, Quotation, Login, admin/* (Dashboard, Orders, Inventory,
                           DeliveryMap, Quotations, Users)
-  src/components/         Hero3D (React Three Fiber scene), MapPicker, Navbar, Footer, ui
+  src/components/         MapPicker, Navbar, Footer, RouteFocus, ui.jsx + ui/ (semantic
+                          primitives/overlays), public/* (HeroScene, LandingSections,
+                          Gallery, Rentals, navigation — public-site redesign), Hero3D.jsx (legacy)
   src/pdf/quotePdf.js     branded quotation + delivery-order PDF generator
   src/api.js, auth.jsx    axios instance, JWT token storage + refresh interceptor
+  tests/ + vitest.config  component/public-site tests (run: node node_modules\vitest\vitest.mjs run)
 images/                   source photos (logo, pricelist 3, equipments, event gallery)
 .opencode/skills/         installed AI design skills (see docs/11-SKILLS-EXTENSIONS.md)
 design-system/            generated design system + brand override (docs/07-DESIGN-SYSTEM.md)
-docs/                     00..11 project documentation (read in order on first contact)
+docs/                     00..11 project documentation + UI-REDESIGN-*.md (read in order on first contact)
 railway.json              Railway build/deploy config (docs/08-DEPLOYMENT.md)
 ```
 

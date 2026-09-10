@@ -1,5 +1,11 @@
 # 10 — Development Workflow
 
+## One-click start (recommended)
+
+Double-click **`start-local.bat`** (or run `powershell -ExecutionPolicy Bypass -File start-local.ps1`).
+It starts Django (:8000) and Vite (:5173) in minimized windows, waits for boot, and
+prints the website/admin links. Close the two minimized windows to stop the servers.
+
 ## Environment quirks (Windows)
 
 - The project folder is `Jan & Jimel's project web app` — the **apostrophe breaks

@@ -44,6 +44,9 @@ and a complete admin panel that replaces pen-and-paper delivery records:
 | `docs/09-SECURITY.md` | JWT/CSRF, rate limits, guards, RLS, test playbook |
 | `docs/10-DEVELOPMENT-WORKFLOW.md` | commands (Windows quirk), seeds, git flow |
 | `docs/11-SKILLS-EXTENSIONS.md` | .opencode skills usage |
+| `docs/UI-DESIGN-SYSTEM.md` | semantic `--ui-*` tokens + component contracts (redesign Phase 1) |
+| `docs/UI-REDESIGN-BASELINE.md` | UI baseline + route/workflow regression matrix |
+| `docs/UI-REDESIGN-PHASE-2.md` | public navigation & landing redesign notes |
 
 ## Tech Stack
 

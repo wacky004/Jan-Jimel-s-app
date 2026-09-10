@@ -2,7 +2,12 @@
 
 React 19 + Vite 8 + Tailwind CSS 4 + Framer Motion + React Three Fiber.
 Deps: axios, react-router-dom 7, leaflet + react-leaflet 5 + leaflet.heat,
-jspdf (lazy-loaded), three + @react-three/fiber + @react-three/drei.
+jspdf (lazy-loaded), three + @react-three/fiber + @react-three/drei, lucide-react.
+Dev/test: vitest + @testing-library/react + jsdom, oxlint.
+
+> The public site was redesigned (ChatGPT, PRs #1–#3). See `docs/UI-DESIGN-SYSTEM.md`
+> (semantic `--ui-*` tokens, component contracts) and `docs/UI-REDESIGN-BASELINE.md`
+> (regression matrix). `docs/UI-REDESIGN-PHASE-2.md` covers the public navigation/landing work.
 
 ## File map
 
@@ -10,40 +15,30 @@ jspdf (lazy-loaded), three + @react-three/fiber + @react-three/drei.
 src/
   main.jsx            entry; StrictMode + index.css
   App.jsx             router, AuthProvider, MotionConfig(reducedMotion="user"),
-                      lazy admin pages, public layout (Navbar/Footer)
+                      lazy admin pages, RouteFocus, skip link, public layout
   api.js              axios instance (baseURL /api), JWT interceptor + refresh-on-401
   auth.jsx            AuthProvider: user state, login/logout, /auth/me on boot
   images.js           ITEM_PHOTO_OPTIONS (event photos for the inventory photo picker)
-  index.css           Tailwind v4 @theme: navy-*, gold-* tokens; fonts; reduced-motion CSS
+  index.css           Tailwind v4 @theme: navy-*, gold-* tokens + semantic --ui-* tokens
+  hooks/useMediaQuery.js   responsive-mode helper (hero adaptive mode)
   components/
-    Hero3D.jsx        photoreal banquet hero (R3F): PBR materials, offline Environment
-                      (Lightformers), SoftShadows/ContactShadows, champagne tower,
-                      balloons; mobile fallback; static under prefers-reduced-motion
-    MapPicker.jsx     search (Nominatim) + click-to-pin mini map (used in order form,
-                      shop base, pin flows)
-    Navbar.jsx / Footer.jsx / ui.jsx (StatusBadge, inputs, formatPHP/DateTime)
+    public/           public-site redesign: HeroScene (R3F), LandingSections, Gallery,
+                      Rentals, navigation.js, galleryData.js, QuoteLink, public.css
+    ui/primitives.jsx, ui/overlays.jsx   semantic UI components (re-exported via ui.jsx)
+    ui.jsx            StatusBadge + legacy input/label/btn*/format helpers
+    MapPicker.jsx     search (Nominatim) + click-to-pin mini map
+    Navbar.jsx / Footer.jsx / RouteFocus.jsx
+    Hero3D.jsx        legacy hero (kept; public site now uses public/HeroScene.jsx)
   pages/
-    Landing.jsx       3D hero, stats, about, services (SVG icons), gallery, equipment
-                      & rates (live /api/items), why-us, contact + OSM embed, lightbox
-    Quotation.jsx     public quote form: Pricelist rate sheet (live, downloadable PDF),
-                      item picker with photos + "Other equipment", submit → POST
-    Login.jsx         admin login (trim, maxLength, 429 message)
-    admin/
-      AdminLayout.jsx  sidebar nav + user card + logout (Users link = super admin only)
-      Dashboard.jsx    stats cards + CSV export buttons
-      Orders.jsx       order table (search/status), OrderForm modal (MapPicker, custom
-                       equipment), OrderDetail modal (returns, status advance, PDF)
-      OrderForm.jsx    create/edit order; items with inventory dropdown + custom rows
-      Inventory.jsx    item table (low stock, filters), item form incl. photo picker grid
-      DeliveryMap.jsx  single-view map: customer search + side panel ("All customers"),
-                       save pin (search/manual), shop base modal (MapPicker),
-                       auto road directions (OSRM) + fit-to-route, trend toggle
-                       (per-customer ×N badges), heatmap, status/month filters
-      Quotations.jsx   list (source badges + filters), New Quotation editor with
-                       pricelist dropdown + Custom items + N/A lines, reply generator,
-                       Download PDF
-      Users.jsx        create/delete admins (super admin)
+    Landing.jsx       composes public/* sections (hero, stats, about, services,
+                      gallery, equipment & rates, why-us, contact, lightbox)
+    Quotation.jsx     public quote form: rate sheet + PDF + item photos + Others
+    Login.jsx         admin login (TextField/Button + FormErrorSummary; trim, maxLength, 429)
+    admin/            AdminLayout (skip link/focus), Dashboard, Orders, OrderForm,
+                      Inventory, DeliveryMap, Quotations, Users
   pdf/quotePdf.js      branded quotation + delivery-order PDFs (see docs/06)
+tests/                 vitest suites (public-site, ui) — run `node node_modules\vitest\vitest.mjs run`
+vitest.config.js       jsdom environment + setup file
 ```
 
 ## Routing
