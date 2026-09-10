@@ -19,7 +19,7 @@ function focusableElements(dialog) {
     .filter((element) => element.tabIndex >= 0 && !element.matches(':disabled') && !element.closest('[hidden], [inert]') && element.getClientRects().length > 0)
 }
 
-export function Dialog({ open, onClose, title, description, children, footer, initialFocusRef, dismissible = true, closeOnBackdrop = false, className = '', id, ...props }) {
+export function Dialog({ open, onClose, title, description, children, footer, initialFocusRef, dismissible = true, closeOnBackdrop = false, closeLabel = 'Close dialog', onKeyDown: handleKeyDown, className = '', id, ...props }) {
   const ref = useRef(null)
   const titleId = useId()
   const descriptionId = useId()
@@ -43,6 +43,8 @@ export function Dialog({ open, onClose, title, description, children, footer, in
   }, [open, initialFocusRef])
 
   const onKeyDown = (event) => {
+    handleKeyDown?.(event)
+    if (event.defaultPrevented) return
     if (event.key !== 'Tab') return
     const items = focusableElements(ref.current)
     const first = items[0]
@@ -66,7 +68,7 @@ export function Dialog({ open, onClose, title, description, children, footer, in
       {open && <>
         <header className="ui-dialog-header">
           <div><h2 id={titleId}>{title}</h2>{description && <p id={descriptionId}>{description}</p>}</div>
-          <IconButton label="Close dialog" disabled={!dismissible} onClick={onClose}><X size={20} aria-hidden="true" /></IconButton>
+          <IconButton label={closeLabel} disabled={!dismissible} onClick={onClose}><X size={20} aria-hidden="true" /></IconButton>
         </header>
         <div className="ui-dialog-body">{children}</div>
         {footer && <footer className="ui-dialog-footer">{footer}</footer>}

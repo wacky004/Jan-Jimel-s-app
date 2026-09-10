@@ -1,104 +1,67 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-
-const links = [
-  { to: '/', label: 'Home' },
-  { to: '/#about', label: 'About' },
-  { to: '/#services', label: 'Services' },
-  { to: '/#gallery', label: 'Gallery' },
-  { to: '/#equipment', label: 'Rates' },
-  { to: '/#contact', label: 'Contact' },
-]
+import { Menu } from 'lucide-react'
+import { Drawer, IconButton } from './ui'
+import QuoteLink from './public/QuoteLink'
+import { publicLinks } from './public/navigation'
+import './public/public.css'
 
 export default function Navbar() {
-  const [scrolled, setScrolled] = useState(false)
-  const [open, setOpen] = useState(false)
   const location = useLocation()
+  const [menuKey, setMenuKey] = useState(null)
+  const brand = useRef(null)
+  const firstLink = useRef(null)
+  const open = menuKey === location.key
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40)
-    onScroll()
-    window.addEventListener('scroll', onScroll)
-    return () => window.removeEventListener('scroll', onScroll)
+    const media = window.matchMedia('(min-width: 1200px)')
+    let frame
+    const closeAtDesktop = () => {
+      if (!media.matches) return
+      const wasOpen = document.getElementById('public-mobile-menu')?.open
+      setMenuKey(null)
+      if (wasOpen) frame = requestAnimationFrame(() => brand.current?.focus())
+    }
+    media.addEventListener('change', closeAtDesktop)
+    return () => { media.removeEventListener('change', closeAtDesktop); cancelAnimationFrame(frame) }
   }, [])
 
-  const isLanding = location.pathname === '/'
+  useEffect(() => {
+    // Run after modal cleanup and route focus, including cross-page hash links.
+    const frame = requestAnimationFrame(() => {
+      if (location.pathname !== '/') return
+      if (!location.hash) {
+        document.getElementById('main-content')?.focus({ preventScroll: true })
+        window.scrollTo({ top: 0, behavior: 'instant' })
+        return
+      }
+      let id
+      try { id = decodeURIComponent(location.hash.slice(1)) } catch { return }
+      const target = document.getElementById(id)
+      if (target) { target.focus({ preventScroll: true }); target.scrollIntoView({ block: 'start', behavior: 'instant' }) }
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [location.key, location.pathname, location.hash])
 
-  return (
-    <header
-      className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
-        scrolled || !isLanding ? 'bg-navy-950/95 shadow-lg shadow-navy-950/30 backdrop-blur' : 'bg-transparent'
-      }`}
-    >
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-        <Link to="/" className="flex items-center gap-3">
-          <img
-            src="/images/logo.jpg"
-            alt="Jan & Jimels Party Needs logo"
-            className="h-12 w-12 rounded-full border-2 border-gold-500 object-cover"
-          />
-          <div className="leading-tight">
-            <p className="font-display text-lg font-bold text-white">Jan &amp; Jimels</p>
-            <p className="text-[11px] font-medium tracking-[0.18em] text-gold-400 uppercase">
-              Party Needs
-            </p>
-          </div>
-        </Link>
-
-        <nav className="hidden items-center gap-7 md:flex">
-          {links.map((l) => (
-            <Link
-              key={l.label}
-              to={l.to}
-              className="text-sm font-medium text-white/90 transition hover:text-gold-400"
-            >
-              {l.label}
-            </Link>
-          ))}
-          <Link
-            to="/quote"
-            className="rounded-full bg-gold-500 px-5 py-2 text-sm font-semibold text-navy-950 shadow-lg shadow-gold-500/30 transition hover:bg-gold-400"
-          >
-            Request a Quote
-          </Link>
-        </nav>
-
-        <button
-          className="text-white md:hidden"
-          onClick={() => setOpen(!open)}
-          aria-label="Toggle menu"
-        >
-          <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            {open ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            )}
-          </svg>
-        </button>
-      </div>
-
-      {open && (
-        <nav className="space-y-1 bg-navy-950/95 px-6 pb-5 md:hidden">
-          {links.map((l) => (
-            <Link
-              key={l.label}
-              to={l.to}
-              onClick={() => setOpen(false)}
-              className="block py-2 text-sm font-medium text-white/90"
-            >
-              {l.label}
-            </Link>
-          ))}
-          <Link
-            to="/quote"
-            onClick={() => setOpen(false)}
-            className="mt-2 block rounded-full bg-gold-500 px-5 py-2 text-center text-sm font-semibold text-navy-950"
-          >
-            Request a Quote
-          </Link>
-        </nav>
-      )}
-    </header>
-  )
+  const current = (to) => `${location.pathname}${location.hash}` === to ? 'page' : undefined
+  return <header className="public-navbar">
+    <div className="public-shell public-navbar-inner">
+      <Link ref={brand} to="/" className="public-brand" aria-label="Jan & Jimels Party Needs — Home">
+        <img src="/images/logo.jpg" alt="" width="48" height="48" />
+        <span><strong>Jan &amp; Jimels</strong><small>Party Needs</small></span>
+      </Link>
+      <nav className="public-desktop-nav" aria-label="Main navigation">
+        {publicLinks.map(({ to, label }) => <Link key={to} to={to} aria-current={current(to)}>{label}</Link>)}
+        <QuoteLink />
+      </nav>
+      <IconButton className="public-menu-toggle" label="Open navigation" aria-expanded={open} aria-controls="public-mobile-menu" onClick={() => setMenuKey(location.key)}><Menu size={24} aria-hidden="true" /></IconButton>
+    </div>
+    <Drawer id="public-mobile-menu" open={open} onClose={() => setMenuKey(null)} title="Explore Jan & Jimels" description="Rentals, celebrations and contact details." initialFocusRef={firstLink} closeLabel="Close navigation" className="public-menu">
+      <nav aria-label="Mobile navigation">
+        {publicLinks.map(({ to, label }, index) => <Link ref={index === 0 ? firstLink : undefined} key={to} to={to} aria-current={current(to)} onClick={() => setMenuKey(null)}>{label}</Link>)}
+        <QuoteLink onClick={() => setMenuKey(null)} />
+      </nav>
+      <a className="public-text-link" href="tel:09089503879">Call 0908-950-3879</a>
+    </Drawer>
+  </header>
 }
