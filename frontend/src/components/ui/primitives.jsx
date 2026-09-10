@@ -58,7 +58,7 @@ export function CheckboxField({ id, label, hint, error, className, ...props }) {
   )
 }
 
-export function FormErrorSummary({ id, errors = [], title = 'Please check the following', focus = false }) {
+export function FormErrorSummary({ id, errors = [], title = 'Please check the following', focus = false, onFieldFocus }) {
   const ref = useRef(null)
   const headingId = useId()
   const hasErrors = errors.length > 0
@@ -71,6 +71,7 @@ export function FormErrorSummary({ id, errors = [], title = 'Please check the fo
         {errors.map(({ fieldId, message }, index) => (
           <li key={`${fieldId || 'form'}-${index}`}>
             {fieldId ? <a href={`#${fieldId}`} onClick={(event) => {
+              if (onFieldFocus) { event.preventDefault(); onFieldFocus(fieldId); return }
               const field = document.getElementById(fieldId)
               if (field) { event.preventDefault(); field.focus(); field.scrollIntoView({ block: 'center' }) }
             }}>{message}</a> : message}

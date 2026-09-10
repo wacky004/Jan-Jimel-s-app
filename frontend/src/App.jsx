@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { MotionConfig } from 'framer-motion'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth'
 import Footer from './components/Footer'
 import Navbar from './components/Navbar'
@@ -55,10 +55,8 @@ function PublicLayout({ children }) {
   )
 }
 
-export default function App() {
+function AppRoutes() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
         <MotionConfig reducedMotion="user">
           <a href="#main-content" className="ui-skip-link" onClick={(event) => {
             const main = document.getElementById('main-content')
@@ -98,7 +96,13 @@ export default function App() {
             </Routes>
           </PublicLayout>
         </MotionConfig>
-      </BrowserRouter>
-    </AuthProvider>
   )
+}
+
+// Data-router context enables supported navigation blocking for unsent quotes.
+// The existing descendant routes and Protected guards remain unchanged.
+const router = createBrowserRouter([{ path: '*', element: <AppRoutes /> }])
+
+export default function App() {
+  return <AuthProvider><RouterProvider router={router} /></AuthProvider>
 }
