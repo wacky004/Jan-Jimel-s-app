@@ -5,12 +5,10 @@ import userEvent from '@testing-library/user-event'
 import Navbar from '../src/components/Navbar'
 import Gallery from '../src/components/public/Gallery'
 import Rentals from '../src/components/public/Rentals'
-import Hero3D from '../src/components/Hero3D'
 import { galleryPhotos } from '../src/components/public/galleryData'
 import api from '../src/api'
 
 vi.mock('../src/api', () => ({ default: { get: vi.fn() } }))
-vi.mock('../src/components/public/HeroScene', () => ({ default: () => <div data-testid="desktop-scene" /> }))
 let viewport, observers, media
 function resize(values) {
   act(() => {
@@ -123,29 +121,5 @@ describe('public rental rates', () => {
     vi.mocked(api.get).mockResolvedValue({ data: [] }); render(<MemoryRouter><Rentals /></MemoryRouter>)
     expect(await screen.findByText('No rental rates to display')).not.toBeNull()
     expect(screen.queryByRole('alert')).toBeNull(); expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
-  })
-})
-
-describe('adaptive hero', () => {
-  it.each([375, 768, 1024, 1440])('selects its mode at %ipx (media-query test, not layout QA)', async (width) => {
-    viewport.width = width; render(<Hero3D />)
-    if (width >= 1024) expect(await screen.findByTestId('desktop-scene')).not.toBeNull()
-    else { expect(screen.getByRole('img').getAttribute('src')).toBe(galleryPhotos[19].src); expect(screen.queryByTestId('desktop-scene')).toBeNull() }
-  })
-  it('unmounts expensive scene as viewport, motion, pointer, visibility and pause change', async () => {
-    viewport.width = 1440; render(<Hero3D />)
-    expect(await screen.findByTestId('desktop-scene')).not.toBeNull()
-    resize({ reduced: true }); expect(screen.queryByTestId('desktop-scene')).toBeNull(); expect(screen.queryByRole('button')).toBeNull()
-    resize({ reduced: false }); await screen.findByTestId('desktop-scene')
-    resize({ width: 375 }); expect(screen.queryByTestId('desktop-scene')).toBeNull()
-    resize({ width: 1440, fine: false }); expect(screen.queryByTestId('desktop-scene')).toBeNull()
-    resize({ fine: true }); await screen.findByTestId('desktop-scene')
-    await userEvent.click(screen.getByRole('button', { name: 'Pause animation' })); expect(screen.queryByTestId('desktop-scene')).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Play animation' })); await screen.findByTestId('desktop-scene')
-    act(() => observers[0].callback([{ isIntersecting: false }])); expect(screen.queryByTestId('desktop-scene')).toBeNull()
-    act(() => observers[0].callback([{ isIntersecting: true }])); await screen.findByTestId('desktop-scene')
-    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
-    fireEvent(document, new Event('visibilitychange')); expect(screen.queryByTestId('desktop-scene')).toBeNull()
-    hidden.mockReturnValue(false); fireEvent(document, new Event('visibilitychange')); await screen.findByTestId('desktop-scene')
   })
 })

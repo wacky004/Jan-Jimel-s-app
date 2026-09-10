@@ -7,9 +7,15 @@ Dev/test: vitest + @testing-library/react + jsdom, oxlint.
 
 > The public site was redesigned (ChatGPT, PRs #1–#4). See `docs/UI-DESIGN-SYSTEM.md`
 > (semantic `--ui-*` tokens, component contracts) and `docs/UI-REDESIGN-BASELINE.md`
-> (regression matrix). `docs/UI-REDESIGN-PHASE-2.md` covers public navigation/landing;
-> `docs/UI-REDESIGN-PHASE-3.md` covers the accessible three-step quotation wizard
-> (`components/quotation/*`), which posts the same payload to `/quotations/public/submit/`.
+> (regression matrix). `docs/UI-REDESIGN-PHASE-3.md` covers the accessible three-step
+> quotation wizard (`components/quotation/*`), which posts the same payload to
+> `/quotations/public/submit/`.
+>
+> **Landing page:** the owner prefers the original "DeepSeek" landing — `pages/Landing.jsx`
+> + the photoreal 3D hero in `components/Hero3D.jsx` were restored from commit `97dd895`
+> (anchors carry `scroll-mt-24` for the fixed navbar). The ChatGPT `public/*` landing
+> components (LandingSections, HeroScene, public.css) remain in the repo but are no
+> longer used by the landing; `Gallery`/`Rentals` still have component tests.
 
 ## File map
 
@@ -32,8 +38,10 @@ src/
     Navbar.jsx / Footer.jsx / RouteFocus.jsx
     Hero3D.jsx        legacy hero (kept; public site now uses public/HeroScene.jsx)
   pages/
-    Landing.jsx       composes public/* sections (hero, stats, about, services,
-                      gallery, equipment & rates, why-us, contact, lightbox)
+    Landing.jsx       original "DeepSeek" landing: 3D hero (Hero3D), stats, about,
+                      services (SVG icons), gallery + lightbox, equipment & rates
+                      (live /api/items), why-us, contact + OSM embed; anchors use
+                      scroll-mt-24 for the fixed navbar
     Quotation.jsx     public quote form: rate sheet + PDF + item photos + Others
     Login.jsx         admin login (TextField/Button + FormErrorSummary; trim, maxLength, 429)
     admin/            AdminLayout (skip link/focus), Dashboard, Orders, OrderForm,
