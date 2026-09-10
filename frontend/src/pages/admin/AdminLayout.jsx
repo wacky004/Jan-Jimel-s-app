@@ -110,7 +110,7 @@ export default function AdminLayout() {
             Est. 1995 · Cainta, Rizal
           </span>
         </header>
-        <main className="flex-1 p-5 sm:p-7">
+        <main id="main-content" tabIndex={-1} className="flex-1 p-5 sm:p-7">
           <Outlet />
         </main>
       </div>

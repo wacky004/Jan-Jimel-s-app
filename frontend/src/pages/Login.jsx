@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
+import { Button, FormErrorSummary, TextField } from '../components/ui'
 
 export default function Login() {
   const { login } = useAuth()
@@ -55,49 +56,41 @@ export default function Login() {
         </div>
 
         <form onSubmit={submit} className="mt-8 space-y-5">
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold tracking-wide text-white/70 uppercase">
-              Username
-            </label>
-            <input
-              required
-              maxLength={150}
-              className="w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-white placeholder-white/40 outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-500/30"
-              placeholder="Enter username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold tracking-wide text-white/70 uppercase">
-              Password
-            </label>
-            <input
-              required
-              type="password"
-              maxLength={128}
-              className="w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-white placeholder-white/40 outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-500/30"
-              placeholder="Enter password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-          </div>
-
-          {error && (
-            <p className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-              {error}
-            </p>
-          )}
-
-          <button
+          <TextField
+            id="login-username"
+            label="Username"
+            tone="inverse"
+            required
+            maxLength={150}
+            aria-describedby={error ? 'login-error' : undefined}
+            placeholder="Enter username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+          />
+          <TextField
+            id="login-password"
+            label="Password"
+            tone="inverse"
+            required
+            type="password"
+            maxLength={128}
+            aria-describedby={error ? 'login-error' : undefined}
+            placeholder="Enter password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+          />
+          <FormErrorSummary id="login-error" title="Sign-in failed" errors={error ? [{ message: error }] : []} focus />
+          <Button
             type="submit"
-            disabled={loading}
-            className="w-full rounded-full bg-gold-500 py-3.5 text-sm font-bold text-navy-950 shadow-xl shadow-gold-500/25 transition hover:bg-gold-400 disabled:opacity-60"
+            variant="conversion"
+            busy={loading}
+            busyLabel="Signing in…"
+            className="w-full"
           >
-            {loading ? 'Signing in…' : 'Sign In'}
-          </button>
+            Sign In
+          </Button>
         </form>
 
         <p className="mt-8 text-center text-xs text-white/50">

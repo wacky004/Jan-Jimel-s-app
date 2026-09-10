@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import { AuthProvider, useAuth } from './auth'
 import Footer from './components/Footer'
 import Navbar from './components/Navbar'
+import RouteFocus from './components/RouteFocus'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Quotation from './pages/Quotation'
@@ -43,11 +44,12 @@ function Protected({ children, superOnly = false }) {
 function PublicLayout({ children }) {
   const location = useLocation()
   const isAdmin = location.pathname.startsWith('/admin')
+  if (location.pathname === '/admin/login') return <main id="main-content" tabIndex={-1}>{children}</main>
   if (isAdmin) return children
   return (
     <>
       <Navbar />
-      {children}
+      <main id="main-content" tabIndex={-1}>{children}</main>
       <Footer />
     </>
   )
@@ -58,6 +60,11 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <MotionConfig reducedMotion="user">
+          <a href="#main-content" className="ui-skip-link" onClick={(event) => {
+            const main = document.getElementById('main-content')
+            if (main) { event.preventDefault(); main.focus(); main.scrollIntoView({ block: 'start' }) }
+          }}>Skip to main content</a>
+          <RouteFocus />
           <PublicLayout>
             <Routes>
               <Route path="/" element={<Landing />} />
