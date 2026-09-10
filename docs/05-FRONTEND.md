@@ -5,9 +5,11 @@ Deps: axios, react-router-dom 7, leaflet + react-leaflet 5 + leaflet.heat,
 jspdf (lazy-loaded), three + @react-three/fiber + @react-three/drei, lucide-react.
 Dev/test: vitest + @testing-library/react + jsdom, oxlint.
 
-> The public site was redesigned (ChatGPT, PRs #1–#3). See `docs/UI-DESIGN-SYSTEM.md`
+> The public site was redesigned (ChatGPT, PRs #1–#4). See `docs/UI-DESIGN-SYSTEM.md`
 > (semantic `--ui-*` tokens, component contracts) and `docs/UI-REDESIGN-BASELINE.md`
-> (regression matrix). `docs/UI-REDESIGN-PHASE-2.md` covers the public navigation/landing work.
+> (regression matrix). `docs/UI-REDESIGN-PHASE-2.md` covers public navigation/landing;
+> `docs/UI-REDESIGN-PHASE-3.md` covers the accessible three-step quotation wizard
+> (`components/quotation/*`), which posts the same payload to `/quotations/public/submit/`.
 
 ## File map
 

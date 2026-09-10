@@ -47,6 +47,7 @@ and a complete admin panel that replaces pen-and-paper delivery records:
 | `docs/UI-DESIGN-SYSTEM.md` | semantic `--ui-*` tokens + component contracts (redesign Phase 1) |
 | `docs/UI-REDESIGN-BASELINE.md` | UI baseline + route/workflow regression matrix |
 | `docs/UI-REDESIGN-PHASE-2.md` | public navigation & landing redesign notes |
+| `docs/UI-REDESIGN-PHASE-3.md` | three-step accessible quotation wizard notes |
 
 ## Tech Stack
 
