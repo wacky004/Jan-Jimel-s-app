@@ -1,4 +1,5 @@
 name: Build Android APK
+# Builds the offline quotation APK (mobile/) and uploads it as an artifact.
 
 on:
   push:
