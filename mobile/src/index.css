@@ -1,0 +1,62 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-navy-50: #eef2f9;
+  --color-navy-100: #d8e2f1;
+  --color-navy-200: #b3c5e3;
+  --color-navy-300: #84a0d0;
+  --color-navy-400: #5478b8;
+  --color-navy-500: #34579c;
+  --color-navy-600: #24417d;
+  --color-navy-700: #1b3262;
+  --color-navy-800: #14274d;
+  --color-navy-900: #0c1a36;
+  --color-navy-950: #071126;
+  --color-gold-100: #fdf6dd;
+  --color-gold-300: #f0d47a;
+  --color-gold-400: #e6c35a;
+  --color-gold-500: #d4af37;
+  --color-gold-600: #b8952a;
+  --color-gold-700: #947622;
+  --font-display: 'Georgia', 'Times New Roman', serif;
+}
+
+html {
+  font-size: 18px;
+}
+
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: #eef2f9;
+  color: #14274d;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  font-size: 1.05rem;
+}
+
+/* Big-touch helpers */
+.tap-target {
+  min-height: 56px;
+}
+
+.safe-bottom {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}

@@ -33,7 +33,13 @@ frontend/                 React 19 + Vite 8 + Tailwind 4 (see docs/05-FRONTEND.m
   src/pdf/quotePdf.js     branded quotation + delivery-order PDF generator
   src/api.js, auth.jsx    axios instance, JWT token storage + refresh interceptor
   tests/ + vitest.config  component/public-site tests (run: node node_modules\vitest\vitest.mjs run)
-images/                   source photos (logo, pricelist 3, equipments, event gallery)
+mobile/                   Offline Android quotation app — Capacitor 7 + React (see docs/12-MOBILE-APP.md)
+  src/lib/storage.js      IndexedDB (localforage): catalog, packages, customers, quotes, backup
+  src/lib/quotePdf.js     branded quotation PDF (jsPDF) — filename = Quotation-{Customer}-{date}.pdf
+  src/pages/              Home, NewQuote (4-step wizard), Packages, Catalog, Quotes, Settings
+  android/                generated Capacitor Android project (built to APK in CI)
+.github/workflows/        android-apk.yml — builds the APK on push (download artifact, install on phone)
+images/                   source photos (logo, pricelist 3, equipments, equipment/, req/, event gallery)
 .opencode/skills/         installed AI design skills (see docs/11-SKILLS-EXTENSIONS.md)
 design-system/            generated design system + brand override (docs/07-DESIGN-SYSTEM.md)
 docs/                     00..11 project documentation + UI-REDESIGN-*.md (read in order on first contact)

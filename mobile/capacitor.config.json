@@ -1,0 +1,8 @@
+{
+  "appId": "ph.janjimels.quotation",
+  "appName": "JJ Quotation",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}
