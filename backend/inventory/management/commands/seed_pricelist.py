@@ -29,6 +29,18 @@ PRICELIST_2 = [
 ]
 
 
+EQUIPMENT_PHOTOS = {
+    'Plates': '/images/equipment/plates.jpg',
+    'Utensils': '/images/equipment/utensils.jpg',
+    'Chafing Dish': '/images/equipment/chafing-dish.jpg',
+    'Serving Tray': '/images/equipment/serving-tray.jpg',
+    'Soup Bowls': '/images/equipment/soup-bowls.jpg',
+    'High-Ball Glass': '/images/equipment/highball-glass.jpg',
+    'Wine Glass': '/images/equipment/wine-glass.jpg',
+    'Pitcher': '/images/equipment/pitcher.jpg',
+}
+
+
 class Command(BaseCommand):
     help = 'Sync inventory with the official Pricelist 2 items and prices.'
 
@@ -44,14 +56,18 @@ class Command(BaseCommand):
         pricelist_names = {row[0] for row in PRICELIST_2}
 
         for name, category, qty, color, size, price in PRICELIST_2:
-            item, was_created = Item.objects.get_or_create(name=name, defaults={
+            defaults = {
                 'category': category,
                 'quantity_on_hand': qty,
                 'color': color,
                 'size': size,
                 'rental_price': price,
                 'condition': Item.GOOD,
-            })
+            }
+            photo = EQUIPMENT_PHOTOS.get(name)
+            if photo:
+                defaults['photo_url'] = photo
+            item, was_created = Item.objects.get_or_create(name=name, defaults=defaults)
             if was_created:
                 created += 1
                 self.stdout.write(f'  + created {name} ({category})')
@@ -66,6 +82,9 @@ class Command(BaseCommand):
                     if getattr(item, field) != value:
                         setattr(item, field, value)
                         changed = True
+                if photo and not item.photo_url:
+                    item.photo_url = photo
+                    changed = True
                 if changed:
                     item.save()
                     updated += 1

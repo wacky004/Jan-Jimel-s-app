@@ -26,7 +26,9 @@ src/
                       lazy admin pages, RouteFocus, skip link, public layout
   api.js              axios instance (baseURL /api), JWT interceptor + refresh-on-401
   auth.jsx            AuthProvider: user state, login/logout, /auth/me on boot
-  images.js           ITEM_PHOTO_OPTIONS (event photos for the inventory photo picker)
+  images.js           ITEM_PHOTO_OPTIONS = EQUIPMENT_PHOTO_OPTIONS (8 catering item photos
+                      from images/equipment/, see images/equipment/SOURCES.md for licenses)
+                      + the 20 event photos + equipments poster
   index.css           Tailwind v4 @theme: navy-*, gold-* tokens + semantic --ui-* tokens
   hooks/useMediaQuery.js   responsive-mode helper (hero adaptive mode)
   components/

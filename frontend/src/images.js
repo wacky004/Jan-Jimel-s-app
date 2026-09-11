@@ -1,4 +1,16 @@
+export const EQUIPMENT_PHOTO_OPTIONS = [
+  '/images/equipment/plates.jpg',
+  '/images/equipment/utensils.jpg',
+  '/images/equipment/chafing-dish.jpg',
+  '/images/equipment/serving-tray.jpg',
+  '/images/equipment/soup-bowls.jpg',
+  '/images/equipment/highball-glass.jpg',
+  '/images/equipment/wine-glass.jpg',
+  '/images/equipment/pitcher.jpg',
+]
+
 export const ITEM_PHOTO_OPTIONS = [
+  ...EQUIPMENT_PHOTO_OPTIONS,
   '/images/118991207_969595646799415_6140996894831890068_n.jpg',
   '/images/119507536_974973656261614_5605340908193473247_n.jpg',
   '/images/119560072_974973499594963_66919201614516531_n.jpg',
