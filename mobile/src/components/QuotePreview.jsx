@@ -18,15 +18,15 @@ const C = {
 const label = { fontSize: 9, fontWeight: 700, letterSpacing: 0.5, color: C.gold, margin: 0 }
 const value = { fontSize: 12, fontWeight: 600, color: C.navy, margin: '2px 0 0' }
 
-export default function QuotePreview({ quote }) {
-  const subtotal = quote.lines.reduce((s, it) => s + Number(it.qty) * Number(it.unitPrice), 0)
+export default function QuotePreview({ quote, id = 'quote-preview' }) {
+  const subtotal = quote.lines.reduce((s, it) => s + Number(it.qty) * Number(it.unitPrice || 0), 0)
   const discount = Number(quote.discount || 0)
   const deliveryFee = Number(quote.deliveryFee || 0)
   const setupFee = Number(quote.setupFee || 0)
   const total = Math.max(subtotal - discount + deliveryFee + setupFee, 0)
 
   return (
-    <div id="quote-preview" style={{ background: '#ffffff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 8px 24px rgba(7,17,38,0.15)' }}>
+    <div id={id} style={{ background: '#ffffff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 8px 24px rgba(7,17,38,0.15)' }}>
       {/* Header */}
       <div style={{ display: 'flex', gap: 12, background: C.navy, padding: '16px 16px', color: '#ffffff' }}>
         <img

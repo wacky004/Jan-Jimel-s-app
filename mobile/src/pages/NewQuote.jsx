@@ -8,7 +8,7 @@ import { BigButton, Field, inputClass, Modal, MoneyInput, Stepper, TopBar } from
 import { setPageBackHandler } from '../lib/backButton'
 import { formatPHPShort, newId, todayISO } from '../lib/format'
 import { buildQuotationPdfBlob } from '../lib/quotePdf'
-import { shareFile } from '../lib/share'
+import { saveFile, shareFile } from '../lib/share'
 import { storage } from '../lib/storage'
 
 const STEPS = ['Customer', 'Items', 'Review', 'Generate']
@@ -25,6 +25,7 @@ export default function NewQuote() {
   const [deliveryFee, setDeliveryFee] = useState('')
   const [setupFee, setSetupFee] = useState('')
   const [tab, setTab] = useState('packages')
+  const [partyCategory, setPartyCategory] = useState(null)
   const [builderOpen, setBuilderOpen] = useState(false)
   const [editLine, setEditLine] = useState(null)
   const [customLineOpen, setCustomLineOpen] = useState(false)
@@ -33,6 +34,7 @@ export default function NewQuote() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')
   const [saved, setSaved] = useState(false)
+  const [saveMsg, setSaveMsg] = useState('')
   const [exitConfirm, setExitConfirm] = useState(false)
 
   useEffect(() => {
@@ -76,9 +78,10 @@ export default function NewQuote() {
     for (const it of partyItems) (g[it.category] ||= []).push(it)
     return g
   }, [partyItems])
+  const partyCategories = Object.keys(groupedParty)
 
   const subtotal = useMemo(
-    () => lines.reduce((s, l) => s + Number(l.qty) * Number(l.unitPrice), 0),
+    () => lines.reduce((s, l) => s + Number(l.qty) * Number(l.unitPrice || 0), 0),
     [lines],
   )
   const delivery = Number(deliveryFee || 0)
@@ -88,6 +91,9 @@ export default function NewQuote() {
   const qtyOf = (catalogId) => lines.find((l) => l.catalogId === catalogId)?.qty || 0
   const itemLine = (catalogId) => lines.find((l) => l.catalogId === catalogId)
   const pkgLine = (pkgId) => lines.find((l) => l.packageId === pkgId)
+
+  const selectedCountFor = (category) =>
+    (groupedParty[category] || []).filter((it) => itemLine(it.id)).length
 
   const changeItemQty = (item, qty) => {
     setLines((arr) => {
@@ -102,8 +108,7 @@ export default function NewQuote() {
   }
 
   const setItemPrice = (catalogId, value) => {
-    const num = value === '' ? 0 : Number(value)
-    setLines((arr) => arr.map((l) => (l.catalogId === catalogId ? { ...l, unitPrice: num } : l)))
+    setLines((arr) => arr.map((l) => (l.catalogId === catalogId ? { ...l, unitPrice: value } : l)))
   }
 
   const addPackage = (pkg) => {
@@ -118,8 +123,7 @@ export default function NewQuote() {
   }
 
   const setPackagePrice = (pkgId, value) => {
-    const num = value === '' ? 0 : Number(value)
-    setLines((arr) => arr.map((l) => (l.packageId === pkgId ? { ...l, unitPrice: num } : l)))
+    setLines((arr) => arr.map((l) => (l.packageId === pkgId ? { ...l, unitPrice: value } : l)))
   }
 
   const savePackage = async (pkg) => {
@@ -174,9 +178,16 @@ export default function NewQuote() {
     setStep((s) => s - 1)
   }
 
+  const captureImageBlob = async () => {
+    const el = document.getElementById('quote-preview-export')
+    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' })
+    return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
+  }
+
   const sharePdf = async () => {
     setBusy('pdf')
     setError('')
+    setSaveMsg('')
     try {
       const data = buildQuoteData()
       const { blob, filename } = await buildQuotationPdfBlob(data)
@@ -189,13 +200,29 @@ export default function NewQuote() {
     }
   }
 
+  const savePdf = async () => {
+    setBusy('savepdf')
+    setError('')
+    setSaveMsg('')
+    try {
+      const data = buildQuoteData()
+      const { blob, filename } = await buildQuotationPdfBlob(data)
+      const result = await saveFile({ blob, filename })
+      setSaveMsg(`Saved to ${result.location}: ${filename}`)
+      await persistQuote()
+    } catch (e) {
+      setError(`Could not save the PDF: ${e.message || e}`)
+    } finally {
+      setBusy('')
+    }
+  }
+
   const shareImage = async () => {
     setBusy('image')
     setError('')
+    setSaveMsg('')
     try {
-      const el = document.getElementById('quote-preview')
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' })
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
+      const blob = await captureImageBlob()
       const data = buildQuoteData()
       await shareFile({
         blob,
@@ -207,6 +234,24 @@ export default function NewQuote() {
       await persistQuote()
     } catch (e) {
       setError(`Could not create the image: ${e.message || e}`)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const saveImage = async () => {
+    setBusy('saveimage')
+    setError('')
+    setSaveMsg('')
+    try {
+      const blob = await captureImageBlob()
+      const data = buildQuoteData()
+      const filename = `Quotation-${data.customerName.replace(/\s+/g, '-')}-${data.dateISO}.png`
+      const result = await saveFile({ blob, filename })
+      setSaveMsg(`Saved to ${result.location}: ${filename}`)
+      await persistQuote()
+    } catch (e) {
+      setError(`Could not save the image: ${e.message || e}`)
     } finally {
       setBusy('')
     }
@@ -229,19 +274,22 @@ export default function NewQuote() {
     setStep(0)
     setSaved(false)
     setError('')
+    setSaveMsg('')
+    setPartyCategory(null)
   }
 
   const priceField = (value, onValue) => (
     <div className="mt-2 flex items-center gap-2">
       <span className="text-xs font-bold tracking-wide text-navy-500 uppercase">Price for this quote</span>
       <div className="flex items-center rounded-xl border-2 border-gold-500/60 bg-gold-100/40 px-2">
-        <span className="text-sm font-bold text-navy-400">P</span>
+        <span className="text-sm font-bold text-navy-400">PHP</span>
         <input
           type="number"
           inputMode="decimal"
           min={0}
           step="0.01"
-          value={value}
+          value={value === 0 || value === '0' ? '' : (value ?? '')}
+          onFocus={(e) => e.target.select()}
           onChange={(e) => onValue(e.target.value)}
           className="w-24 bg-transparent py-1.5 text-base font-bold text-navy-900 outline-none"
         />
@@ -345,7 +393,10 @@ export default function NewQuote() {
               </button>
               <button
                 type="button"
-                onClick={() => setTab('party')}
+                onClick={() => {
+                  setTab('party')
+                  setPartyCategory(null)
+                }}
                 className={`tap-target flex-1 rounded-xl text-base font-bold ${tab === 'party' ? 'bg-navy-800 text-white' : 'text-navy-600'}`}
               >
                 🪑 Party Needs
@@ -356,15 +407,18 @@ export default function NewQuote() {
               <div className="space-y-3">
                 {packages.map((pkg) => {
                   const line = pkgLine(pkg.id)
+                  const included = pkg.items || []
+                  const summary =
+                    included.length > 0
+                      ? `${included.slice(0, 3).map((i) => `${i.qty} ${i.name}`).join(', ')}${included.length > 3 ? ` +${included.length - 3} more` : ''}`
+                      : ''
                   return (
                     <div key={pkg.id} className="rounded-3xl border-2 border-navy-100 bg-white p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <p className="text-lg font-bold break-words text-navy-900">{pkg.name}</p>
-                          <p className="text-sm text-navy-500">
-                            {formatPHPShort(line ? line.unitPrice : pkg.price)}
-                            {pkg.items?.length > 0 && ` · ${pkg.items.map((i) => `${i.qty} ${i.name}`).join(', ')}`}
-                          </p>
+                          <p className="text-lg leading-snug font-bold break-words text-navy-900">{pkg.name}</p>
+                          <p className="text-sm text-navy-500">{formatPHPShort(line ? line.unitPrice : pkg.price)}</p>
+                          {summary && <p className="mt-1 text-xs leading-snug text-navy-400">{summary}</p>}
                         </div>
                         <button
                           type="button"
@@ -387,34 +441,64 @@ export default function NewQuote() {
                   ➕ Build a Package
                 </BigButton>
               </div>
+            ) : partyCategory === null ? (
+              /* ---- Party Needs: choose a category ---- */
+              <div className="space-y-3">
+                {partyCategories.map((category) => {
+                  const list = groupedParty[category]
+                  const count = selectedCountFor(category)
+                  return (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => setPartyCategory(category)}
+                      className="flex w-full items-center justify-between gap-3 rounded-3xl border-2 border-navy-100 bg-white p-5 text-left active:bg-navy-50"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-lg font-bold break-words text-navy-900">{category}</span>
+                        <span className="block text-sm text-navy-500">
+                          {list.length} items
+                          {count > 0 ? ` · ${count} selected` : ''}
+                        </span>
+                      </span>
+                      <span className="text-2xl text-gold-600">›</span>
+                    </button>
+                  )
+                })}
+                {partyCategories.length === 0 && (
+                  <p className="rounded-3xl border-2 border-dashed border-navy-200 bg-white/60 px-4 py-8 text-center text-sm text-navy-500">
+                    No party needs yet. Add items in Items &amp; Prices.
+                  </p>
+                )}
+              </div>
             ) : (
-              <div className="space-y-5">
-                {Object.entries(groupedParty).map(([category, list]) => (
-                  <div key={category}>
-                    <p className="mb-2 text-sm font-bold tracking-wide text-gold-600 uppercase">{category}</p>
-                    <div className="space-y-2">
-                      {list.map((it) => {
-                        const line = itemLine(it.id)
-                        return (
-                          <div key={it.id} className="rounded-2xl border-2 border-navy-100 bg-white px-4 py-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="min-w-0 flex-1">
-                                <p className="text-base leading-snug font-semibold break-words text-navy-900">
-                                  {it.name}
-                                </p>
-                                <p className="text-xs text-navy-400">
-                                  {formatPHPShort(line ? line.unitPrice : it.price)} each
-                                </p>
-                              </div>
-                              <Stepper value={qtyOf(it.id)} onChange={(q) => changeItemQty(it, q)} />
-                            </div>
-                            {line && priceField(line.unitPrice, (v) => setItemPrice(it.id, v))}
-                          </div>
-                        )
-                      })}
+              /* ---- Party Needs: items in the chosen category ---- */
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setPartyCategory(null)}
+                  className="tap-target flex w-full items-center gap-2 rounded-2xl border-2 border-navy-100 bg-white px-4 text-base font-bold text-navy-700 active:bg-navy-50"
+                >
+                  ← All categories
+                </button>
+                <p className="text-lg font-bold break-words text-navy-900">{partyCategory}</p>
+                {(groupedParty[partyCategory] || []).map((it) => {
+                  const line = itemLine(it.id)
+                  return (
+                    <div key={it.id} className="rounded-2xl border-2 border-navy-100 bg-white px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-base leading-snug font-semibold break-words text-navy-900">{it.name}</p>
+                          <p className="text-xs text-navy-400">
+                            {formatPHPShort(line ? line.unitPrice : it.price)} each
+                          </p>
+                        </div>
+                        <Stepper value={qtyOf(it.id)} onChange={(q) => changeItemQty(it, q)} />
+                      </div>
+                      {line && priceField(line.unitPrice, (v) => setItemPrice(it.id, v))}
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -439,7 +523,7 @@ export default function NewQuote() {
                   </span>
                 </span>
                 <span className="shrink-0 text-base font-bold text-navy-900">
-                  {formatPHPShort(Number(l.qty) * Number(l.unitPrice))}
+                  {formatPHPShort(Number(l.qty) * Number(l.unitPrice || 0))}
                 </span>
               </button>
             ))}
@@ -501,27 +585,39 @@ export default function NewQuote() {
           <div className="space-y-4">
             <QuotePreview quote={buildQuoteData()} />
 
-            <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
               <BigButton onClick={sharePdf} disabled={busy === 'pdf'}>
-                {busy === 'pdf' ? 'Creating PDF…' : '📄 Share PDF'}
+                {busy === 'pdf' ? 'Creating…' : '📤 Share PDF'}
               </BigButton>
-              <BigButton variant="navy" onClick={shareImage} disabled={busy === 'image'}>
-                {busy === 'image' ? 'Creating image…' : '🖼️ Share as Image'}
+              <BigButton variant="navy" onClick={savePdf} disabled={busy === 'savepdf'}>
+                {busy === 'savepdf' ? 'Saving…' : '💾 Save PDF'}
               </BigButton>
-              <BigButton variant="outline" onClick={startNew}>
-                ➕ Start New Quotation
+              <BigButton variant="outline" onClick={shareImage} disabled={busy === 'image'}>
+                {busy === 'image' ? 'Creating…' : '📤 Share Image'}
+              </BigButton>
+              <BigButton variant="outline" onClick={saveImage} disabled={busy === 'saveimage'}>
+                {busy === 'saveimage' ? 'Saving…' : '💾 Save Image'}
               </BigButton>
             </div>
+            <BigButton variant="outline" onClick={startNew}>
+              ➕ Start New Quotation
+            </BigButton>
+
             {saved && (
-              <p className="rounded-2xl border-2 border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-semibold text-green-700">
+              <p className="rounded-2xl border-2 border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-semibold break-words text-green-700">
                 ✓ Saved to your quotations
+              </p>
+            )}
+            {saveMsg && (
+              <p className="rounded-2xl border-2 border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-semibold break-words text-green-700">
+                ✓ {saveMsg}
               </p>
             )}
           </div>
         )}
 
         {error && (
-          <p className="mt-4 rounded-2xl border-2 border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          <p className="mt-4 rounded-2xl border-2 border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold break-words text-red-700">
             {error}
           </p>
         )}
@@ -529,12 +625,17 @@ export default function NewQuote() {
         {/* Bottom action */}
         {step < 3 && (
           <div className="mt-6">
-            <BigButton onClick={next}>
-              {step === 2 ? 'Review Done — Continue' : 'Next'}
-            </BigButton>
+            <BigButton onClick={next}>{step === 2 ? 'Review Done — Continue' : 'Next'}</BigButton>
           </div>
         )}
       </div>
+
+      {/* Hidden A4-width copy used for image export (document-shaped PNG) */}
+      {step === 3 && (
+        <div aria-hidden="true" style={{ position: 'fixed', left: -10000, top: 0, width: 794, pointerEvents: 'none' }}>
+          <QuotePreview quote={buildQuoteData()} id="quote-preview-export" />
+        </div>
+      )}
 
       {/* Modals */}
       {builderOpen && (
@@ -578,8 +679,8 @@ export default function NewQuote() {
               <MoneyInput
                 value={editLine.unitPrice}
                 onChange={(v) => {
-                  updateLine(editLine.id, { unitPrice: Number(v || 0) })
-                  setEditLine({ ...editLine, unitPrice: Number(v || 0) })
+                  updateLine(editLine.id, { unitPrice: v })
+                  setEditLine({ ...editLine, unitPrice: v })
                 }}
               />
             </div>

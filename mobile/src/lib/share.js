@@ -43,6 +43,42 @@ export async function shareFile({ blob, filename, mimeType = 'application/pdf', 
   return null
 }
 
+export async function saveFile({ blob, filename }) {
+  if (Capacitor.isNativePlatform()) {
+    const base64 = await blobToBase64(blob)
+    const attempts = [
+      { directory: Directory.ExternalStorage, path: `Download/${filename}`, label: 'Downloads' },
+      { directory: Directory.Documents, path: filename, label: 'Documents' },
+    ]
+    let lastError = null
+    for (const attempt of attempts) {
+      try {
+        await Filesystem.writeFile({
+          path: attempt.path,
+          data: base64,
+          directory: attempt.directory,
+          recursive: true,
+        })
+        return { location: attempt.label }
+      } catch (e) {
+        lastError = e
+      }
+    }
+    throw lastError || new Error('Could not save the file')
+  }
+
+  // Browser fallback: normal download
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+  return { location: 'Downloads' }
+}
+
 export function isNative() {
   return Capacitor.isNativePlatform()
 }

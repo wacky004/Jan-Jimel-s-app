@@ -1,12 +1,12 @@
 export function formatPHP(n) {
-  return `P ${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+  return `PHP ${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
 }
 
 export function formatPHPShort(n) {
   const value = Number(n || 0)
   return value % 1 === 0
-    ? `P ${value.toLocaleString('en-PH')}`
-    : `P ${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+    ? `PHP ${value.toLocaleString('en-PH')}`
+    : `PHP ${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
 }
 
 export function formatDate(d) {

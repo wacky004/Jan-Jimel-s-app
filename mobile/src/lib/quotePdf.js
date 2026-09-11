@@ -42,7 +42,7 @@ async function loadLogo() {
 }
 
 function money(n) {
-  return `P ${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+  return `PHP ${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
 }
 
 function drawFooter(doc) {
@@ -260,16 +260,28 @@ export async function buildQuotationPdfBlob(quote) {
 
   y = drawTable(doc, quote.lines, y)
 
-  const subtotal = quote.lines.reduce((s, it) => s + Number(it.qty) * Number(it.unitPrice), 0)
+  const subtotal = quote.lines.reduce((s, it) => s + Number(it.qty) * Number(it.unitPrice || 0), 0)
   const discount = Number(quote.discount || 0)
   const deliveryFee = Number(quote.deliveryFee || 0)
   const setupFee = Number(quote.setupFee || 0)
   const total = Math.max(subtotal - discount + deliveryFee + setupFee, 0)
 
+  // Keep the totals block on one page (up to 5 rows need ~50mm)
+  if (y > 233) {
+    drawFooter(doc)
+    doc.addPage()
+    y = 24
+  }
+
   doc.setDrawColor(...BRAND.gold)
   doc.line(12, y, 198, y)
   y += 2
   const addTotalRow = (label, value, bold = false, fill = null) => {
+    if (y > 266) {
+      drawFooter(doc)
+      doc.addPage()
+      y = 24
+    }
     if (fill) {
       doc.setFillColor(...fill)
       doc.rect(12, y - 4.2, 186, 8.4, 'F')
@@ -303,6 +315,13 @@ export async function buildQuotationPdfBlob(quote) {
     const noteLines = doc.splitTextToSize(quote.notes, 180)
     doc.text(noteLines.slice(0, 3), 12, y + 5.5)
     y += 6 + Math.min(noteLines.length, 3) * 4.6
+  }
+
+  // Keep the terms/signature block on one page (~75mm)
+  if (y > 205) {
+    drawFooter(doc)
+    doc.addPage()
+    y = 24
   }
 
   y = drawBlocks(doc, y + 2)

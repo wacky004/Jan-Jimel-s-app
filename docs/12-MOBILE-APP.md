@@ -33,15 +33,26 @@ buttons, big text, minimal typing. Full English.
 ## Pricing model
 
 - **Equipment → packages:** pick items, set one bundle price. Saved for reuse.
-- **Party needs → individual:** qty × unit price with steppers.
-- **Typeable quantities:** tap the number between − and + to type directly.
-- **Inline price editing on the Items step:** when an item/package is added
-  (qty ≥ 1), a "Price for this quote" field appears on its row — changes apply
-  to this quotation only (the catalog price is untouched).
-- Any line's price can also be adjusted during Review (special customer pricing).
+- **Party needs → individual, step by step:** pick a **category card** (Chairs,
+  Tables, Linen & Décor, Tent…) showing selected counts, then adjust quantities
+  on that category's item screen with − qty + (quantity is also **typeable**).
+- **Price fields** start empty (no leading-zero typing) and **select-all on focus**;
+  "Price for this quote" appears once an item/package is added and only affects
+  the current quotation.
 - Optional **Discount**, **Delivery Fee**, and **Setup Fee** (blank = free, e.g.
   nearby locations). Totals: `Subtotal − Discount + Delivery + Setup`.
-- Total auto-computed and shown in the PDF/image.
+- Currency shown as **PHP 1,234.00** everywhere (app, PDF, image).
+
+## Saving & sharing
+
+- **Share PDF / Share Image** → Android share sheet (Messenger, WhatsApp, email…)
+- **Save PDF / Save Image** → saves to the phone: tries the **Downloads** folder
+  first (`Download/`), falls back to **Documents**, and if the OS blocks both,
+  the app tells you where it went or use Share. A confirmation shows the exact
+  file name and location.
+- **Image export is A4-width (794px @2x)** — document-shaped like the PDF, not a
+  narrow vertical strip.
+- **PDF filename:** `Quotation-{CustomerName}-{date}.pdf`
 
 ## Back gesture / exit behaviour (Android)
 

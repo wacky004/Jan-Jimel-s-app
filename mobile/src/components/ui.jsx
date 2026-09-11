@@ -121,16 +121,18 @@ export function EmptyState({ icon, title, subtitle }) {
 }
 
 export function MoneyInput({ value, onChange, placeholder = '0.00' }) {
+  const display = value === 0 || value === '0' ? '' : (value ?? '')
   return (
     <div className="flex items-center rounded-2xl border-2 border-navy-100 bg-white px-4 focus-within:border-gold-500">
-      <span className="mr-2 text-lg font-bold text-navy-400">P</span>
+      <span className="mr-2 text-base font-bold text-navy-400">PHP</span>
       <input
         type="number"
         inputMode="decimal"
         min={0}
         step="0.01"
-        value={value}
+        value={display}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={(e) => e.target.select()}
         placeholder={placeholder}
         className="w-full bg-transparent py-4 text-lg font-semibold text-navy-900 outline-none"
       />
