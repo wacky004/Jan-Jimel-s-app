@@ -21,7 +21,9 @@ const value = { fontSize: 12, fontWeight: 600, color: C.navy, margin: '2px 0 0' 
 export default function QuotePreview({ quote }) {
   const subtotal = quote.lines.reduce((s, it) => s + Number(it.qty) * Number(it.unitPrice), 0)
   const discount = Number(quote.discount || 0)
-  const total = Math.max(subtotal - discount, 0)
+  const deliveryFee = Number(quote.deliveryFee || 0)
+  const setupFee = Number(quote.setupFee || 0)
+  const total = Math.max(subtotal - discount + deliveryFee + setupFee, 0)
 
   return (
     <div id="quote-preview" style={{ background: '#ffffff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 8px 24px rgba(7,17,38,0.15)' }}>
@@ -105,14 +107,26 @@ export default function QuotePreview({ quote }) {
         </table>
 
         <div style={{ marginTop: 12, borderTop: `2px solid ${C.gold}`, paddingTop: 8, textAlign: 'right', fontSize: 11 }}>
-          {discount > 0 && (
+          {(discount > 0 || deliveryFee > 0 || setupFee > 0) && (
             <>
               <p style={{ margin: '2px 0', color: C.gray }}>
                 Subtotal: <span style={{ fontWeight: 600, color: C.navy }}>{formatPHP(subtotal)}</span>
               </p>
-              <p style={{ margin: '2px 0', color: C.gray }}>
-                Discount: <span style={{ fontWeight: 600, color: C.navy }}>- {formatPHP(discount)}</span>
-              </p>
+              {discount > 0 && (
+                <p style={{ margin: '2px 0', color: C.gray }}>
+                  Discount: <span style={{ fontWeight: 600, color: C.navy }}>- {formatPHP(discount)}</span>
+                </p>
+              )}
+              {deliveryFee > 0 && (
+                <p style={{ margin: '2px 0', color: C.gray }}>
+                  Delivery Fee: <span style={{ fontWeight: 600, color: C.navy }}>+ {formatPHP(deliveryFee)}</span>
+                </p>
+              )}
+              {setupFee > 0 && (
+                <p style={{ margin: '2px 0', color: C.gray }}>
+                  Setup Fee: <span style={{ fontWeight: 600, color: C.navy }}>+ {formatPHP(setupFee)}</span>
+                </p>
+              )}
             </>
           )}
           <p style={{ margin: '6px 0 0', background: C.goldPale, borderRadius: 8, padding: '8px 12px', fontSize: 15, fontWeight: 700, color: C.navy }}>

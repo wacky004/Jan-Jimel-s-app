@@ -262,7 +262,9 @@ export async function buildQuotationPdfBlob(quote) {
 
   const subtotal = quote.lines.reduce((s, it) => s + Number(it.qty) * Number(it.unitPrice), 0)
   const discount = Number(quote.discount || 0)
-  const total = Math.max(subtotal - discount, 0)
+  const deliveryFee = Number(quote.deliveryFee || 0)
+  const setupFee = Number(quote.setupFee || 0)
+  const total = Math.max(subtotal - discount + deliveryFee + setupFee, 0)
 
   doc.setDrawColor(...BRAND.gold)
   doc.line(12, y, 198, y)
@@ -279,9 +281,11 @@ export async function buildQuotationPdfBlob(quote) {
     doc.text(value, 198, y, { align: 'right' })
     y += 9
   }
-  if (discount > 0) {
+  if (discount > 0 || deliveryFee > 0 || setupFee > 0) {
     addTotalRow('SUBTOTAL', money(subtotal))
-    addTotalRow('DISCOUNT', `- ${money(discount)}`)
+    if (discount > 0) addTotalRow('DISCOUNT', `- ${money(discount)}`)
+    if (deliveryFee > 0) addTotalRow('DELIVERY FEE', `+ ${money(deliveryFee)}`)
+    if (setupFee > 0) addTotalRow('SETUP FEE', `+ ${money(setupFee)}`)
   }
   addTotalRow('TOTAL', money(total), true, BRAND.goldLight)
   doc.setDrawColor(...BRAND.gold)

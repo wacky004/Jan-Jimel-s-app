@@ -34,8 +34,22 @@ buttons, big text, minimal typing. Full English.
 
 - **Equipment → packages:** pick items, set one bundle price. Saved for reuse.
 - **Party needs → individual:** qty × unit price with steppers.
-- Any line's price can be adjusted during Review (special customer pricing).
-- Optional discount; total auto-computed.
+- **Typeable quantities:** tap the number between − and + to type directly.
+- **Inline price editing on the Items step:** when an item/package is added
+  (qty ≥ 1), a "Price for this quote" field appears on its row — changes apply
+  to this quotation only (the catalog price is untouched).
+- Any line's price can also be adjusted during Review (special customer pricing).
+- Optional **Discount**, **Delivery Fee**, and **Setup Fee** (blank = free, e.g.
+  nearby locations). Totals: `Subtotal − Discount + Delivery + Setup`.
+- Total auto-computed and shown in the PDF/image.
+
+## Back gesture / exit behaviour (Android)
+
+- Back gesture or ← during **New Quotation with any data** → confirmation
+  *"Cancel this quotation? Your changes will not be saved."* (Keep Editing / Cancel Quotation)
+- Back on other screens → returns to Home
+- Back on Home → *"Exit JJ Quotation?"* confirmation (never exits silently)
+- Implemented via `@capacitor/app` `backButton` + `src/lib/backButton.js` registry
 
 ## PDF rules
 

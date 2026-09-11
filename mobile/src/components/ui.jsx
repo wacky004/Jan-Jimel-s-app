@@ -20,6 +20,10 @@ export function BigButton({ children, onClick, variant = 'primary', disabled, cl
 export function Stepper({ value, onChange, min = 0, step = 1 }) {
   const dec = () => onChange(Math.max(min, Number(value) - step))
   const inc = () => onChange(Number(value) + step)
+  const onInput = (e) => {
+    const raw = e.target.value.replace(/[^\d]/g, '')
+    onChange(raw === '' ? min : Math.max(min, parseInt(raw, 10)))
+  }
   return (
     <div className="flex items-center gap-2">
       <button
@@ -30,7 +34,17 @@ export function Stepper({ value, onChange, min = 0, step = 1 }) {
       >
         −
       </button>
-      <span className="w-14 text-center text-xl font-bold text-navy-900">{value}</span>
+      <input
+        type="number"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        min={min}
+        value={value}
+        onChange={onInput}
+        onFocus={(e) => e.target.select()}
+        className="h-14 w-16 rounded-2xl border-2 border-navy-100 bg-white text-center text-xl font-bold text-navy-900 outline-none focus:border-gold-500"
+        aria-label="Quantity"
+      />
       <button
         type="button"
         onClick={inc}

@@ -83,7 +83,7 @@ export default function Quotes() {
             className="flex w-full items-center justify-between gap-3 rounded-2xl border-2 border-navy-100 bg-white px-4 py-4 text-left active:bg-navy-50"
           >
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-base font-bold text-navy-900">{q.customerName}</span>
+              <span className="block text-base leading-snug font-bold break-words text-navy-900">{q.customerName}</span>
               <span className="block text-xs text-navy-400">
                 {formatDate(q.dateISO)}
                 {q.eventDate ? ` · Event ${formatDate(q.eventDate)}` : ''}

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import PackageBuilder from '../components/PackageBuilder'
 import QuotePreview from '../components/QuotePreview'
 import { BigButton, Field, inputClass, Modal, MoneyInput, Stepper, TopBar } from '../components/ui'
+import { setPageBackHandler } from '../lib/backButton'
 import { formatPHPShort, newId, todayISO } from '../lib/format'
 import { buildQuotationPdfBlob } from '../lib/quotePdf'
 import { shareFile } from '../lib/share'
@@ -21,6 +22,8 @@ export default function NewQuote() {
   const [customer, setCustomer] = useState({ name: '', phone: '', eventDate: '', eventType: '', venue: '', notes: '' })
   const [lines, setLines] = useState([])
   const [discount, setDiscount] = useState('')
+  const [deliveryFee, setDeliveryFee] = useState('')
+  const [setupFee, setSetupFee] = useState('')
   const [tab, setTab] = useState('packages')
   const [builderOpen, setBuilderOpen] = useState(false)
   const [editLine, setEditLine] = useState(null)
@@ -30,6 +33,7 @@ export default function NewQuote() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')
   const [saved, setSaved] = useState(false)
+  const [exitConfirm, setExitConfirm] = useState(false)
 
   useEffect(() => {
     Promise.all([storage.getCatalog(), storage.getPackages(), storage.getCustomers()]).then(
@@ -40,6 +44,31 @@ export default function NewQuote() {
       },
     )
   }, [])
+
+  const dirty = Boolean(
+    customer.name.trim() ||
+      customer.phone.trim() ||
+      customer.eventDate ||
+      customer.eventType ||
+      customer.venue ||
+      customer.notes.trim() ||
+      lines.length > 0 ||
+      discount ||
+      deliveryFee ||
+      setupFee,
+  )
+
+  // Android back gesture: confirm before leaving a quotation in progress
+  useEffect(() => {
+    setPageBackHandler(() => {
+      if (dirty) {
+        setExitConfirm(true)
+        return true
+      }
+      return false
+    })
+    return () => setPageBackHandler(null)
+  }, [dirty])
 
   const partyItems = useMemo(() => catalog.filter((it) => it.type === 'party'), [catalog])
   const groupedParty = useMemo(() => {
@@ -52,9 +81,13 @@ export default function NewQuote() {
     () => lines.reduce((s, l) => s + Number(l.qty) * Number(l.unitPrice), 0),
     [lines],
   )
-  const total = Math.max(subtotal - Number(discount || 0), 0)
+  const delivery = Number(deliveryFee || 0)
+  const setup = Number(setupFee || 0)
+  const total = Math.max(subtotal - Number(discount || 0) + delivery + setup, 0)
 
   const qtyOf = (catalogId) => lines.find((l) => l.catalogId === catalogId)?.qty || 0
+  const itemLine = (catalogId) => lines.find((l) => l.catalogId === catalogId)
+  const pkgLine = (pkgId) => lines.find((l) => l.packageId === pkgId)
 
   const changeItemQty = (item, qty) => {
     setLines((arr) => {
@@ -68,6 +101,11 @@ export default function NewQuote() {
     })
   }
 
+  const setItemPrice = (catalogId, value) => {
+    const num = value === '' ? 0 : Number(value)
+    setLines((arr) => arr.map((l) => (l.catalogId === catalogId ? { ...l, unitPrice: num } : l)))
+  }
+
   const addPackage = (pkg) => {
     setLines((arr) => {
       const existing = arr.find((l) => l.packageId === pkg.id)
@@ -77,6 +115,11 @@ export default function NewQuote() {
         { id: newId(), type: 'package', packageId: pkg.id, name: pkg.name, qty: 1, unitPrice: Number(pkg.price) },
       ]
     })
+  }
+
+  const setPackagePrice = (pkgId, value) => {
+    const num = value === '' ? 0 : Number(value)
+    setLines((arr) => arr.map((l) => (l.packageId === pkgId ? { ...l, unitPrice: num } : l)))
   }
 
   const savePackage = async (pkg) => {
@@ -109,6 +152,8 @@ export default function NewQuote() {
     venue: customer.venue.trim(),
     notes: customer.notes.trim(),
     discount: Number(discount || 0),
+    deliveryFee: delivery,
+    setupFee: setup,
     dateISO: todayISO(),
     lines,
   })
@@ -122,7 +167,10 @@ export default function NewQuote() {
 
   const back = () => {
     setError('')
-    if (step === 0) return navigate('/')
+    if (step === 0) {
+      if (dirty) return setExitConfirm(true)
+      return navigate('/')
+    }
     setStep((s) => s - 1)
   }
 
@@ -176,10 +224,30 @@ export default function NewQuote() {
     setCustomer({ name: '', phone: '', eventDate: '', eventType: '', venue: '', notes: '' })
     setLines([])
     setDiscount('')
+    setDeliveryFee('')
+    setSetupFee('')
     setStep(0)
     setSaved(false)
     setError('')
   }
+
+  const priceField = (value, onValue) => (
+    <div className="mt-2 flex items-center gap-2">
+      <span className="text-xs font-bold tracking-wide text-navy-500 uppercase">Price for this quote</span>
+      <div className="flex items-center rounded-xl border-2 border-gold-500/60 bg-gold-100/40 px-2">
+        <span className="text-sm font-bold text-navy-400">P</span>
+        <input
+          type="number"
+          inputMode="decimal"
+          min={0}
+          step="0.01"
+          value={value}
+          onChange={(e) => onValue(e.target.value)}
+          className="w-24 bg-transparent py-1.5 text-base font-bold text-navy-900 outline-none"
+        />
+      </div>
+    </div>
+  )
 
   return (
     <div className="safe-top min-h-screen bg-navy-50">
@@ -286,24 +354,30 @@ export default function NewQuote() {
 
             {tab === 'packages' ? (
               <div className="space-y-3">
-                {packages.map((pkg) => (
-                  <div key={pkg.id} className="flex items-center justify-between gap-3 rounded-3xl border-2 border-navy-100 bg-white p-4">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-lg font-bold text-navy-900">{pkg.name}</p>
-                      <p className="text-sm text-navy-500">
-                        {formatPHPShort(pkg.price)}
-                        {pkg.items?.length > 0 && ` · ${pkg.items.map((i) => `${i.qty} ${i.name}`).join(', ')}`}
-                      </p>
+                {packages.map((pkg) => {
+                  const line = pkgLine(pkg.id)
+                  return (
+                    <div key={pkg.id} className="rounded-3xl border-2 border-navy-100 bg-white p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-lg font-bold break-words text-navy-900">{pkg.name}</p>
+                          <p className="text-sm text-navy-500">
+                            {formatPHPShort(line ? line.unitPrice : pkg.price)}
+                            {pkg.items?.length > 0 && ` · ${pkg.items.map((i) => `${i.qty} ${i.name}`).join(', ')}`}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => addPackage(pkg)}
+                          className="tap-target rounded-2xl bg-gold-500 px-5 text-base font-bold text-navy-950 active:bg-gold-400"
+                        >
+                          + Add
+                        </button>
+                      </div>
+                      {line && priceField(line.unitPrice, (v) => setPackagePrice(pkg.id, v))}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => addPackage(pkg)}
-                      className="tap-target rounded-2xl bg-gold-500 px-5 text-base font-bold text-navy-950 active:bg-gold-400"
-                    >
-                      + Add
-                    </button>
-                  </div>
-                ))}
+                  )
+                })}
                 {packages.length === 0 && (
                   <p className="rounded-3xl border-2 border-dashed border-navy-200 bg-white/60 px-4 py-8 text-center text-sm text-navy-500">
                     No packages yet. Build one below.
@@ -319,15 +393,25 @@ export default function NewQuote() {
                   <div key={category}>
                     <p className="mb-2 text-sm font-bold tracking-wide text-gold-600 uppercase">{category}</p>
                     <div className="space-y-2">
-                      {list.map((it) => (
-                        <div key={it.id} className="flex items-center justify-between gap-3 rounded-2xl border-2 border-navy-100 bg-white px-4 py-3">
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-base font-semibold text-navy-900">{it.name}</p>
-                            <p className="text-xs text-navy-400">{formatPHPShort(it.price)} each</p>
+                      {list.map((it) => {
+                        const line = itemLine(it.id)
+                        return (
+                          <div key={it.id} className="rounded-2xl border-2 border-navy-100 bg-white px-4 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-base leading-snug font-semibold break-words text-navy-900">
+                                  {it.name}
+                                </p>
+                                <p className="text-xs text-navy-400">
+                                  {formatPHPShort(line ? line.unitPrice : it.price)} each
+                                </p>
+                              </div>
+                              <Stepper value={qtyOf(it.id)} onChange={(q) => changeItemQty(it, q)} />
+                            </div>
+                            {line && priceField(line.unitPrice, (v) => setItemPrice(it.id, v))}
                           </div>
-                          <Stepper value={qtyOf(it.id)} onChange={(q) => changeItemQty(it, q)} />
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   </div>
                 ))}
@@ -347,14 +431,14 @@ export default function NewQuote() {
                 className="flex w-full items-center justify-between gap-3 rounded-2xl border-2 border-navy-100 bg-white px-4 py-3 text-left active:bg-navy-50"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-base font-semibold text-navy-900">
+                  <span className="block text-base leading-snug font-semibold break-words text-navy-900">
                     {l.name} {l.type === 'package' && <span className="text-xs text-gold-600">(package)</span>}
                   </span>
                   <span className="block text-xs text-navy-400">
                     {l.qty} × {formatPHPShort(l.unitPrice)} · tap to edit
                   </span>
                 </span>
-                <span className="text-base font-bold text-navy-900">
+                <span className="shrink-0 text-base font-bold text-navy-900">
                   {formatPHPShort(Number(l.qty) * Number(l.unitPrice))}
                 </span>
               </button>
@@ -369,6 +453,18 @@ export default function NewQuote() {
               <MoneyInput value={discount} onChange={setDiscount} placeholder="0.00" />
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="mb-1.5 text-sm font-bold tracking-wide text-navy-700 uppercase">Delivery Fee</p>
+                <MoneyInput value={deliveryFee} onChange={setDeliveryFee} placeholder="0.00" />
+              </div>
+              <div>
+                <p className="mb-1.5 text-sm font-bold tracking-wide text-navy-700 uppercase">Setup Fee</p>
+                <MoneyInput value={setupFee} onChange={setSetupFee} placeholder="0.00" />
+              </div>
+            </div>
+            <p className="text-xs text-navy-400">Leave blank if free (e.g. nearby locations).</p>
+
             <div className="rounded-3xl bg-navy-800 px-5 py-4 text-white">
               <div className="flex items-center justify-between text-sm text-white/70">
                 <span>Subtotal</span>
@@ -378,6 +474,18 @@ export default function NewQuote() {
                 <div className="flex items-center justify-between text-sm text-white/70">
                   <span>Discount</span>
                   <span>- {formatPHPShort(discount)}</span>
+                </div>
+              )}
+              {delivery > 0 && (
+                <div className="flex items-center justify-between text-sm text-white/70">
+                  <span>Delivery Fee</span>
+                  <span>+ {formatPHPShort(delivery)}</span>
+                </div>
+              )}
+              {setup > 0 && (
+                <div className="flex items-center justify-between text-sm text-white/70">
+                  <span>Setup Fee</span>
+                  <span>+ {formatPHPShort(setup)}</span>
                 </div>
               )}
               <div className="mt-2 flex items-center justify-between border-t border-white/20 pt-2">
@@ -453,7 +561,7 @@ export default function NewQuote() {
           }
         >
           <div className="space-y-4">
-            <p className="text-lg font-bold text-navy-900">{editLine.name}</p>
+            <p className="text-lg font-bold break-words text-navy-900">{editLine.name}</p>
             <div className="flex items-center justify-between">
               <span className="text-base font-semibold text-navy-700">Quantity</span>
               <Stepper
@@ -500,6 +608,31 @@ export default function NewQuote() {
               <MoneyInput value={customPrice} onChange={setCustomPrice} />
             </div>
           </div>
+        </Modal>
+      )}
+
+      {exitConfirm && (
+        <Modal
+          title="Cancel this quotation?"
+          onClose={() => setExitConfirm(false)}
+          footer={
+            <div className="space-y-2">
+              <BigButton variant="outline" onClick={() => setExitConfirm(false)}>
+                Keep Editing
+              </BigButton>
+              <BigButton
+                variant="danger"
+                onClick={() => {
+                  setExitConfirm(false)
+                  navigate('/')
+                }}
+              >
+                Cancel Quotation
+              </BigButton>
+            </div>
+          }
+        >
+          <p className="text-base text-navy-700">Your changes will not be saved.</p>
         </Modal>
       )}
     </div>
