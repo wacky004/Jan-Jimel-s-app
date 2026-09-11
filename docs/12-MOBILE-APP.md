@@ -61,6 +61,13 @@ buttons, big text, minimal typing. Full English.
    open `app-debug.apk` to install. Updating = install the new APK over the old
    one (data is preserved).
 
+> **Troubleshooting:** if the run fails within seconds with no steps executed and
+> the annotation *"The job was not started because your account is locked due to
+> a billing issue"*, fix the payment issue under GitHub **Settings → Billing and
+> plans** (public repos need a healthy billing account to run Actions). No code
+> change is needed — just re-run the workflow afterwards. Alternative: build
+> locally with Android Studio (below).
+
 ### Local build (optional, needs Android Studio + JDK 21)
 
 ```powershell
