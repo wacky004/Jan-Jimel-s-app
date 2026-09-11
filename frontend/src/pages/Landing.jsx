@@ -158,6 +158,26 @@ const whyUs = [
   },
 ]
 
+const DOCS = {
+  dti: {
+    src: '/images/req/DTI.jpg',
+    alt: "DTI Certificate of Business Name Registration - Jan and Jimel's Party Needs Shop",
+    badge: 'DTI Certificate',
+    title: 'Certificate of Business Name Registration',
+    meta: 'Business Name No. 5418869 · Region IV-A (CALABARZON) · valid until December 2028',
+    aspect: 'aspect-[2285/3000]',
+  },
+  bir: {
+    src: '/images/req/BIR.jpg',
+    alt: "BIR Certificate of Registration (Form 2303) - Jan and Jimel's Party Needs Shop",
+    badge: 'BIR Certificate',
+    title: 'Certificate of Registration (Form 2303)',
+    meta: 'Registered since January 2019 · 9309 Other Service Activities',
+    aspect: 'aspect-[1600/2115]',
+    mask: { left: 7.5, top: 21, width: 31, height: 5 },
+  },
+}
+
 const fadeUp = {
   initial: { opacity: 0, y: 32 },
   whileInView: { opacity: 1, y: 0 },
@@ -375,7 +395,7 @@ export default function Landing() {
                 key={src}
                 {...fadeUp}
                 transition={{ duration: 0.4, delay: (i % 4) * 0.06 }}
-                onClick={() => setLightbox(src)}
+                onClick={() => setLightbox({ src })}
                 className="group relative block w-full overflow-hidden rounded-2xl border border-navy-100"
               >
                 <img
@@ -498,6 +518,77 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ================= REGISTERED & TRUSTED ================= */}
+      <section id="registered" className="scroll-mt-24 bg-navy-50/60 py-24">
+        <div className="mx-auto max-w-6xl px-6">
+          <motion.div {...fadeUp} className="text-center">
+            <p className="text-xs font-semibold tracking-[0.25em] text-gold-600 uppercase">
+              Registered &amp; Trusted
+            </p>
+            <h2 className="font-display mt-3 text-4xl font-bold text-navy-900">
+              A Legitimately Registered Business
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-sm text-navy-800/80">
+              Jan &amp; Jimels Party Needs Shop is duly registered with the Department of
+              Trade and Industry (DTI) and the Bureau of Internal Revenue (BIR) — book
+              with confidence.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              {['DTI Registered', 'BIR Registered', 'Est. 1995'].map((t) => (
+                <span
+                  key={t}
+                  className="rounded-full border border-gold-500/40 bg-white px-5 py-2 text-xs font-semibold tracking-wide text-navy-800 uppercase"
+                >
+                  <span className="text-gold-600">✓</span> {t}
+                </span>
+              ))}
+            </div>
+          </motion.div>
+
+          <div className="mx-auto mt-12 grid max-w-4xl gap-6 sm:grid-cols-2">
+            {Object.values(DOCS).map((doc, i) => (
+              <motion.button
+                key={doc.src}
+                {...fadeUp}
+                transition={{ duration: 0.5, delay: i * 0.08 }}
+                type="button"
+                onClick={() => setLightbox({ src: doc.src, alt: doc.alt, mask: doc.mask })}
+                className="group rounded-3xl border border-navy-100 bg-white p-4 text-left shadow-sm transition hover:-translate-y-1 hover:border-gold-400 hover:shadow-xl"
+              >
+                <span className={`relative block overflow-hidden rounded-2xl border border-navy-100 ${doc.aspect}`}>
+                  <img
+                    src={doc.src}
+                    alt={doc.alt}
+                    loading="lazy"
+                    className="h-full w-full object-cover object-top transition duration-500 group-hover:scale-[1.02]"
+                  />
+                  {doc.mask && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute rounded-sm bg-navy-900 ring-1 ring-white/25"
+                      style={{
+                        left: `${doc.mask.left}%`,
+                        top: `${doc.mask.top}%`,
+                        width: `${doc.mask.width}%`,
+                        height: `${doc.mask.height}%`,
+                      }}
+                    />
+                  )}
+                </span>
+                <p className="mt-4 text-[11px] font-semibold tracking-[0.2em] text-gold-600 uppercase">
+                  {doc.badge}
+                </p>
+                <h3 className="font-display mt-1 text-lg font-bold text-navy-900">{doc.title}</h3>
+                <p className="mt-1 text-xs text-navy-500">{doc.meta}</p>
+                <p className="mt-2 text-[11px] font-semibold text-gold-600">
+                  Click to view full document ↗
+                </p>
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ================= CONTACT / CTA ================= */}
       <section id="contact" className="scroll-mt-24 py-24">
         <div className="mx-auto grid max-w-6xl gap-12 px-6 lg:grid-cols-2">
@@ -579,11 +670,31 @@ export default function Landing() {
           className="fixed inset-0 z-[100] flex items-center justify-center bg-navy-950/90 p-6 backdrop-blur"
           onClick={() => setLightbox(null)}
         >
-          <img
-            src={lightbox}
-            alt="Event gallery"
-            className="max-h-[85vh] max-w-full rounded-2xl border border-gold-500/30 object-contain"
-          />
+          {lightbox.mask ? (
+            <span className="relative inline-block">
+              <img
+                src={lightbox.src}
+                alt={lightbox.alt || 'Document'}
+                className="max-h-[85vh] max-w-full rounded-2xl border border-gold-500/30"
+              />
+              <span
+                aria-hidden="true"
+                className="absolute rounded-sm bg-navy-900 ring-1 ring-white/25"
+                style={{
+                  left: `${lightbox.mask.left}%`,
+                  top: `${lightbox.mask.top}%`,
+                  width: `${lightbox.mask.width}%`,
+                  height: `${lightbox.mask.height}%`,
+                }}
+              />
+            </span>
+          ) : (
+            <img
+              src={lightbox.src}
+              alt={lightbox.alt || 'Event gallery'}
+              className="max-h-[85vh] max-w-full rounded-2xl border border-gold-500/30 object-contain"
+            />
+          )}
           <button
             className="absolute top-6 right-6 text-white/80 transition hover:text-gold-400"
             onClick={() => setLightbox(null)}
