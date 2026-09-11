@@ -68,15 +68,30 @@ buttons, big text, minimal typing. Full English.
 > change is needed — just re-run the workflow afterwards. Alternative: build
 > locally with Android Studio (below).
 
-### Local build (optional, needs Android Studio + JDK 21)
+### Local build (verified on this PC — no Android Studio GUI needed)
+
+Requirements already present on the dev PC: Android Studio (for its bundled JDK 21),
+Android SDK with platform android-35 + build-tools 35.0.0, accepted SDK licenses.
+
+Because the project path contains an apostrophe (`Jan & Jimel's ...`), `gradlew.bat`
+fails — run the Gradle wrapper **directly through Java** instead:
 
 ```powershell
 cd mobile
 node node_modules\vite\bin\vite.js build
 node node_modules\@capacitor\cli\bin\capacitor sync android
+
 cd android
-.\gradlew assembleDebug   # output: app\build\outputs\apk\debug\app-debug.apk
+$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
+& "$env:JAVA_HOME\bin\java.exe" -classpath "gradle\wrapper\gradle-wrapper.jar" `
+    org.gradle.wrapper.GradleWrapperMain assembleDebug --no-daemon
 ```
+
+Output: `mobile\android\app\build\outputs\apk\debug\app-debug.apk` (~4.4 MB).
+First build downloads Gradle 8.11.1 + dependencies (~5 min); later builds ~1 min.
+Copy the APK to the phone and install (allow "unknown apps" once).
 
 ## Development (browser)
 
