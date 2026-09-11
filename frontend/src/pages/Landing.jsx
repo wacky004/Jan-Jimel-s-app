@@ -204,6 +204,8 @@ export default function Landing() {
     return g
   }, [rates])
 
+  const photoItems = useMemo(() => rates.filter((it) => it.photo_url), [rates])
+
   return (
     <div className="overflow-x-clip">
       {/* ================= HERO ================= */}
@@ -410,6 +412,69 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {/* ================= OUR EQUIPMENT ================= */}
+      {photoItems.length > 0 && (
+        <section id="equipment-photos" className="scroll-mt-24 border-t border-navy-100 py-24">
+          <div className="mx-auto max-w-7xl px-6">
+            <motion.div {...fadeUp} className="text-center">
+              <p className="text-xs font-semibold tracking-[0.25em] text-gold-600 uppercase">
+                Our Equipment
+              </p>
+              <h2 className="font-display mt-3 text-4xl font-bold text-navy-900">
+                See What We'll Bring to Your Event
+              </h2>
+              <p className="mx-auto mt-4 max-w-xl text-sm text-navy-800/80">
+                A closer look at our catering equipment — cleaned, checked and ready for your
+                celebration.
+              </p>
+            </motion.div>
+
+            <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {photoItems.map((it, i) => (
+                <motion.button
+                  key={it.id}
+                  {...fadeUp}
+                  transition={{ duration: 0.45, delay: (i % 4) * 0.06 }}
+                  type="button"
+                  onClick={() => setLightbox({ src: it.photo_url, alt: it.name })}
+                  className="group overflow-hidden rounded-3xl border border-navy-100 bg-white text-left shadow-sm transition hover:-translate-y-1 hover:border-gold-400 hover:shadow-xl"
+                >
+                  <span className="block overflow-hidden">
+                    <img
+                      src={it.photo_url}
+                      alt={it.name}
+                      loading="lazy"
+                      className="aspect-square w-full object-cover transition duration-500 group-hover:scale-105"
+                    />
+                  </span>
+                  <span className="block p-4">
+                    <span className="block text-[10px] font-semibold tracking-[0.18em] text-gold-600 uppercase">
+                      {it.category_display}
+                    </span>
+                    <span className="font-display mt-1 block text-base font-bold text-navy-900">
+                      {it.name}
+                    </span>
+                    <span className="mt-1 block text-xs text-navy-500">
+                      {Number(it.rental_price) > 0
+                        ? `₱${Number(it.rental_price).toLocaleString('en-PH')} / rental`
+                        : 'Ask us for rates'}
+                    </span>
+                  </span>
+                </motion.button>
+              ))}
+            </div>
+
+            <motion.p
+              {...fadeUp}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="mt-8 text-center text-xs text-navy-500"
+            >
+              Click any photo to enlarge
+            </motion.p>
+          </div>
+        </section>
+      )}
 
       {/* ================= EQUIPMENT & RATES ================= */}
       <section id="equipment" className="scroll-mt-24 bg-navy-50/60 py-24">

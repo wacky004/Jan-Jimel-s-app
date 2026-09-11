@@ -41,9 +41,10 @@ src/
     Hero3D.jsx        legacy hero (kept; public site now uses public/HeroScene.jsx)
   pages/
     Landing.jsx       original "DeepSeek" landing: 3D hero (Hero3D), stats, about,
-                      services (SVG icons), gallery + lightbox, equipment & rates
-                      (live /api/items), why-us, "Registered & Trusted" (DTI/BIR
-                      document cards with click-to-enlarge; BIR TIN masked via a
+                      services (SVG icons), gallery + lightbox, "Our Equipment" photo
+                      gallery (live items with photos from /api/items, click-to-enlarge),
+                      equipment & rates (live /api/items), why-us, "Registered & Trusted"
+                      (DTI/BIR document cards with click-to-enlarge; BIR TIN masked via a
                       proportional overlay), contact + OSM embed; anchors use
                       scroll-mt-24 for the fixed navbar
     Quotation.jsx     public quote form: rate sheet + PDF + item photos + Others
