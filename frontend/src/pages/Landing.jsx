@@ -2,7 +2,7 @@ import { motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../api'
-import Hero3D from '../components/Hero3D'
+import PhotoHero from '../components/PhotoHero'
 
 const EQUIPMENT_GROUPS = [
   ['chairs', 'Chairs'],
@@ -209,82 +209,7 @@ export default function Landing() {
   return (
     <div className="overflow-x-clip">
       {/* ================= HERO ================= */}
-      <section className="relative flex min-h-screen items-center bg-gradient-to-b from-navy-950 via-navy-900 to-navy-800">
-        <div className="pointer-events-none absolute inset-0 opacity-60">
-          <Hero3D />
-        </div>
-
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,rgba(7,17,38,0.75)_100%)]" />
-
-        <div className="relative z-10 mx-auto grid w-full max-w-7xl gap-8 px-6 pt-28 pb-16 lg:grid-cols-2 lg:items-center">
-          <motion.div
-            initial={{ opacity: 0, x: -40 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.9 }}
-          >
-            <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-gold-500/40 bg-gold-500/10 px-4 py-1.5 text-xs font-semibold tracking-[0.22em] text-gold-300 uppercase">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-gold-400" />
-              Est. 1995 · Cainta, Rizal
-            </p>
-            <h1 className="font-display text-5xl leading-tight font-bold text-white sm:text-6xl lg:text-7xl">
-              Celebrating Life's <span className="text-gradient-gold">Moments</span>
-              <br />
-              Since 1995
-            </h1>
-            <p className="mt-6 max-w-xl text-base leading-relaxed text-white/75 sm:text-lg">
-              Jan &amp; Jimels Party Needs provides complete event rentals and supplies —
-              chairs, tables, linens, tents, décor, sound and lights — delivered reliably
-              to your venue anywhere in Rizal and beyond.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-4">
-              <Link
-                to="/quote"
-                className="rounded-full bg-gold-500 px-8 py-3.5 text-sm font-semibold text-navy-950 shadow-xl shadow-gold-500/30 transition hover:scale-105 hover:bg-gold-400"
-              >
-                Request a Quote
-              </Link>
-              <a
-                href="#gallery"
-                className="rounded-full border border-white/25 px-8 py-3.5 text-sm font-semibold text-white transition hover:border-gold-400 hover:text-gold-400"
-              >
-                View Our Work
-              </a>
-            </div>
-            <div className="mt-10 flex flex-wrap gap-x-8 gap-y-3 text-sm text-white/70">
-              <span className="flex items-center gap-2">
-                <span className="text-gold-400">✓</span> Reliable Delivery
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="text-gold-400">✓</span> Quality Equipment
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="text-gold-400">✓</span> Large Inventory
-              </span>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.9, delay: 0.25 }}
-            className="relative hidden lg:block"
-          >
-            <div className="absolute -inset-6 rounded-[2rem] bg-gold-500/10 blur-2xl" />
-            <img
-              src="/images/cover logo.jpg"
-              alt="Jan & Jimels Party Needs cover"
-              className="relative mx-auto w-full max-w-lg rounded-[2rem] border border-gold-500/30 object-cover shadow-2xl shadow-navy-950/60"
-              style={{ transform: 'perspective(1200px) rotateY(-8deg) rotateX(3deg)' }}
-            />
-          </motion.div>
-        </div>
-
-        <div className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2 animate-bounce text-white/60">
-          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-          </svg>
-        </div>
-      </section>
+      <PhotoHero />
 
       {/* ================= STATS ================= */}
       <section className="bg-navy-900 py-12">

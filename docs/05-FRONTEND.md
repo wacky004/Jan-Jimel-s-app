@@ -40,13 +40,16 @@ src/
     Navbar.jsx / Footer.jsx / RouteFocus.jsx
     Hero3D.jsx        legacy hero (kept; public site now uses public/HeroScene.jsx)
   pages/
-    Landing.jsx       original "DeepSeek" landing: 3D hero (Hero3D), stats, about,
-                      services (SVG icons), gallery + lightbox, "Our Equipment" photo
-                      gallery (live items with photos from /api/items, click-to-enlarge),
-                      equipment & rates (live /api/items), why-us, "Registered & Trusted"
-                      (DTI/BIR document cards with click-to-enlarge; BIR TIN masked via a
-                      proportional overlay), contact + OSM embed; anchors use
-                      scroll-mt-24 for the fixed navbar
+    Landing.jsx       original "DeepSeek" landing: photoreal photo hero
+                      (PhotoHero: real event photos slideshow with Ken Burns zoom +
+                      crossfade + dots, overlaid with HeroParticles — 3D gold bokeh
+                      sprites with pointer parallax; static photo under reduced motion),
+                      stats, about, services (SVG icons), gallery + lightbox,
+                      "Our Equipment" photo gallery (live items with photos from
+                      /api/items, click-to-enlarge), equipment & rates (live /api/items),
+                      why-us, "Registered & Trusted" (DTI/BIR document cards with
+                      click-to-enlarge; BIR TIN masked via a proportional overlay),
+                      contact + OSM embed; anchors use scroll-mt-24 for the fixed navbar
     Quotation.jsx     public quote form: rate sheet + PDF + item photos + Others
     Login.jsx         admin login (TextField/Button + FormErrorSummary; trim, maxLength, 429)
     admin/            AdminLayout (skip link/focus), Dashboard, Orders, OrderForm,
