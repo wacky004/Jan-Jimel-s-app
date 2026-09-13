@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import api from '../../api'
-import { btnGold, formatDateTime, input, StatusBadge } from '../../components/ui'
+import { Button, btnGold, formatDateTime, InlineAlert, input, SelectField, StatusBadge } from '../../components/ui'
 import { downloadQuotationPdf } from '../../pdf/quotePdf'
+import { Download, Pencil, Plus, Trash2, Undo2, X } from 'lucide-react'
+import { AdminFilters, AdminListing, AdminListState, AdminPageHeader } from '../../components/admin/AdminUI'
+import useAdminData from '../../components/admin/useAdminData'
 
 const statusFilters = [
   ['', 'All Statuses'],
@@ -34,7 +37,8 @@ const blankQuote = {
 }
 
 export default function Quotations() {
-  const [list, setList] = useState([])
+  const [search, setSearch] = useState('')
+  const [actionError, setActionError] = useState('')
   const [status, setStatus] = useState('')
   const [source, setSource] = useState('')
   const [selected, setSelected] = useState(null)
@@ -42,7 +46,6 @@ export default function Quotations() {
   const [reply, setReply] = useState('')
   const [items, setItems] = useState([])
   const [saving, setSaving] = useState(false)
-  const [loading, setLoading] = useState(true)
   const [formError, setFormError] = useState('')
   const [catalog, setCatalog] = useState([])
   const catalogRef = useRef(catalog)
@@ -69,22 +72,13 @@ export default function Quotations() {
     return catalog.find((it) => it.name.toLowerCase() === needle) || null
   }
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const params = new URLSearchParams()
-      if (status) params.set('status', status)
-      if (source) params.set('source', source)
-      const { data } = await api.get(`/quotations/?${params}`)
-      setList(data.results || data)
-    } finally {
-      setLoading(false)
-    }
-  }, [status, source])
-
-  useEffect(() => {
-    load()
-  }, [load])
+  const params = new URLSearchParams()
+  if (status) params.set('status', status)
+  if (source) params.set('source', source)
+  const { data, loading, error, load } = useAdminData(`/quotations/?${params}`)
+  const list = (data || []).filter((q) => `${q.name} ${q.phone || ''} ${q.email || ''} ${q.venue || ''}`.toLowerCase().includes(search.trim().toLowerCase()))
+  const active = [search && `Search: ${search}`, status && `Status: ${statusFilters.find(([value]) => value === status)?.[1]}`, source && `Source: ${sourceFilters.find(([value]) => value === source)?.[1]}`].filter(Boolean)
+  const clear = () => { setSearch(''); setStatus(''); setSource('') }
 
   const openEdit = (q) => {
     setCreating(false)
@@ -251,102 +245,29 @@ export default function Quotations() {
 
   const remove = async (q) => {
     if (!window.confirm(`Delete request from ${q.name}?`)) return
-    await api.delete(`/quotations/${q.id}/`)
-    load()
+    setActionError('')
+    try { await api.delete(`/quotations/${q.id}/`); load() }
+    catch { setActionError('Could not delete this quotation. Try again using its Delete action.') }
   }
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl font-bold text-navy-900">Quotations &amp; Inquiries</h2>
-          <p className="text-sm text-navy-600">
-            Website requests and quotations you create — with your own prices.
-          </p>
-        </div>
-        <button className={btnGold} onClick={openCreate}>
-          ＋ New Quotation
-        </button>
-      </div>
-
-      <div className="flex flex-wrap gap-3">
-        <select className={`${input} w-auto`} value={status} onChange={(e) => setStatus(e.target.value)}>
-          {statusFilters.map(([v, l]) => (
-            <option key={v || 'all'} value={v}>{l}</option>
-          ))}
-        </select>
-        <select className={`${input} w-auto`} value={source} onChange={(e) => setSource(e.target.value)}>
-          {sourceFilters.map(([v, l]) => (
-            <option key={v || 'all'} value={v}>{l}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {loading ? (
-          <p className="text-sm text-navy-500">Loading quotations…</p>
-        ) : list.length === 0 ? (
-          <p className="text-sm text-navy-500">No quotations yet. Click “＋ New Quotation” to create one.</p>
-        ) : (
-          list.map((q) => (
-            <div
-              key={q.id}
-              className="rounded-2xl border border-navy-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-navy-900">{q.name}</p>
-                  <p className="text-xs text-navy-500">
-                    {[q.phone, q.email].filter(Boolean).join(' · ') || 'no contact given'}
-                  </p>
-                </div>
-                <div className="flex flex-col items-end gap-1.5">
-                  <StatusBadge status={q.status} label={q.status_display} />
-                  <StatusBadge
-                    status={q.source === 'manual' ? 'confirmed' : 'completed'}
-                    label={q.source === 'manual' ? 'Manual' : 'Web request'}
-                  />
-                </div>
-              </div>
-              <div className="mt-3 space-y-1 text-sm text-navy-700">
-                <p>
-                  <span className="font-medium text-navy-900">Event:</span>{' '}
-                  {q.event_type || '—'} · {q.event_date || 'no date'}
-                </p>
-                <p className="line-clamp-2">
-                  <span className="font-medium text-navy-900">Venue:</span> {q.venue || '—'}
-                </p>
-                {q.items && q.items.length > 0 && (
-                  <p className="line-clamp-3 text-navy-600">
-                    {q.items.map((i) => `${i.description}${i.price_na ? ' (N/A)' : ''}`).join(' · ')}
-                  </p>
-                )}
-              </div>
-              <p className="mt-3 text-xs text-navy-400">{formatDateTime(q.created_at)}</p>
-              <div className="mt-4 flex gap-2">
-                <button
-                  className="flex-1 rounded-full bg-navy-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-navy-700"
-                  onClick={() => openEdit(q)}
-                >
-                  Edit
-                </button>
-                <button
-                  className="rounded-full border border-navy-200 px-4 py-2 text-xs font-semibold text-navy-700 transition hover:border-navy-400"
-                  onClick={() => downloadQuotationPdf(pdfData(q))}
-                >
-                  PDF
-                </button>
-                <button
-                  className="rounded-full border border-red-200 px-3 py-2 text-xs font-semibold text-red-500 transition hover:bg-red-50"
-                  onClick={() => remove(q)}
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      <AdminPageHeader title="Quotations & Inquiries" description="Website requests and quotations you create — with your own prices." action={<Button variant="conversion" onClick={openCreate}><Plus size={18} aria-hidden="true" />New Quotation</Button>} />
+      <AdminFilters search={search} onSearch={setSearch} searchLabel="Search quotations" searchHint="Search contact details and venues in the loaded records." active={active} onClear={clear}>
+        <SelectField label="Quotation status" value={status} onChange={(e) => setStatus(e.target.value)}>{statusFilters.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</SelectField>
+        <SelectField label="Source" value={source} onChange={(e) => setSource(e.target.value)}>{sourceFilters.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</SelectField>
+      </AdminFilters>
+      {actionError && <InlineAlert tone="error">{actionError}</InlineAlert>}
+      <AdminListState name="Quotations" loading={loading} error={error} count={list.length} filtered={active.length > 0} onRetry={load} onClear={clear}>
+        <AdminListing name="Quotations" records={list} columns={[
+          { key: 'customer', label: 'Customer', render: (q) => <>{q.name}<span className="admin-secondary">{[q.phone, q.email].filter(Boolean).join(' · ') || 'No contact given'}</span></> },
+          { key: 'event', label: 'Event / venue', render: (q) => <>{q.event_type || '—'} · {q.event_date || 'No date'}<span className="admin-secondary">{q.venue || 'No venue'}</span></> },
+          { key: 'equipment', label: 'Equipment', render: (q) => q.items?.length ? q.items.map((i) => `${i.description}${i.price_na ? ' (N/A)' : ''}`).join(' · ') : q.items_requested || '—' },
+          { key: 'status', label: 'Status', render: (q) => <StatusBadge status={q.status} label={q.status_display} /> },
+          { key: 'source', label: 'Source', render: (q) => <StatusBadge status={q.source === 'manual' ? 'confirmed' : 'completed'} label={q.source === 'manual' ? 'Manual' : 'Web request'} /> },
+          { key: 'created', label: 'Received', render: (q) => formatDateTime(q.created_at) },
+        ]} actions={(q) => <><Button variant="secondary" aria-label={`Edit quotation ${q.id} for ${q.name}`} onClick={() => openEdit(q)}><Pencil size={16} aria-hidden="true" />Edit</Button><Button variant="ghost" aria-label={`Download PDF for quotation ${q.id}`} onClick={() => downloadQuotationPdf(pdfData(q))}><Download size={16} aria-hidden="true" />PDF</Button><Button variant="danger" aria-label={`Delete quotation ${q.id} for ${q.name}`} onClick={() => remove(q)}><Trash2 size={16} aria-hidden="true" />Delete</Button></>} />
+      </AdminListState>
 
       {selected && (
         <Modal title={creating ? 'New Quotation' : `Quotation — ${selected.name}`} onClose={closeEditor}>
@@ -397,11 +318,11 @@ export default function Quotations() {
                   Line items &amp; prices
                 </p>
                 <button type="button" onClick={addLine} className="text-sm font-semibold text-gold-600 transition hover:text-gold-500">
-                  + Add line
+                  <Plus size={16} className="admin-inline-icon" aria-hidden="true" /> Add line
                 </button>
               </div>
               <p className="mb-2 text-xs text-navy-500">
-                Pick from the Pricelist 3 items — or choose <span className="font-semibold">✦ Custom item…</span> at
+                Pick from the Pricelist 3 items — or choose <span className="font-semibold">Custom item…</span> at
                 the bottom of the list for special pricing.
               </p>
               <div className="space-y-2">
@@ -427,7 +348,7 @@ export default function Quotations() {
                             ))}
                           </optgroup>
                         ))}
-                        <option value="__custom__">✦ Custom item…</option>
+                        <option value="__custom__">Custom item…</option>
                       </select>
                     ) : (
                       <div className="flex gap-2 sm:col-span-6">
@@ -446,7 +367,7 @@ export default function Quotations() {
                           className="shrink-0 rounded-xl border border-navy-200 px-3 text-xs font-semibold text-navy-600 transition hover:border-gold-500"
                           title="Choose from the pricelist instead"
                         >
-                          ↩ list
+                          <Undo2 size={16} className="admin-inline-icon" aria-hidden="true" /> list
                         </button>
                       </div>
                     )}
@@ -479,10 +400,11 @@ export default function Quotations() {
                     </label>
                     <button
                       type="button"
+                      aria-label={`Remove quotation line ${idx + 1}`}
                       onClick={() => removeLine(idx)}
                       className="rounded-xl border border-red-200 text-sm font-bold text-red-500 transition hover:bg-red-50 sm:col-span-1"
                     >
-                      ✕
+                      <Trash2 size={18} className="mx-auto" aria-hidden="true" />
                     </button>
                   </div>
                 ))}
@@ -507,7 +429,7 @@ export default function Quotations() {
                   onClick={() => setReply(buildReplyText())}
                   className="text-xs font-semibold text-gold-600 transition hover:text-gold-500"
                 >
-                  ✍ Generate reply from lines
+                  <Pencil size={16} className="admin-inline-icon" aria-hidden="true" /> Generate reply from lines
                 </button>
               </div>
               <textarea
@@ -528,7 +450,7 @@ export default function Quotations() {
                 className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
                 onClick={() => downloadQuotationPdf(pdfData({ ...selected, items }))}
               >
-                ⬇ Download Quotation PDF
+                <Download size={16} className="admin-inline-icon" aria-hidden="true" /> Download Quotation PDF
               </button>
               <button
                 className={btnGold}
@@ -552,9 +474,7 @@ function Modal({ children, title, onClose }) {
         <div className="flex items-center justify-between rounded-t-3xl border-b border-navy-100 bg-white px-6 py-4">
           <h3 className="font-display text-lg font-bold text-navy-900">{title}</h3>
           <button onClick={onClose} className="text-navy-500 transition hover:text-navy-900" aria-label="Close">
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X size={24} aria-hidden="true" />
           </button>
         </div>
         <div className="p-6">{children}</div>

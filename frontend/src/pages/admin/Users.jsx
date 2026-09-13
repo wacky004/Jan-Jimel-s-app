@@ -1,21 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import api from '../../api'
 import { useAuth } from '../../auth'
-import { btnGold, input, label, StatusBadge } from '../../components/ui'
+import { Plus, Trash2, X } from 'lucide-react'
+import { AdminFilters, AdminListing, AdminListState, AdminPageHeader } from '../../components/admin/AdminUI'
+import useAdminData from '../../components/admin/useAdminData'
+import { Button, btnGold, input, label, SelectField, StatusBadge } from '../../components/ui'
 
 export default function Users() {
   const { user: me } = useAuth()
-  const [users, setUsers] = useState([])
+  const [search, setSearch] = useState('')
+  const [role, setRole] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ username: '', password: '', first_name: '', last_name: '', role: 'admin' })
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const load = () => {
-    api.get('/auth/users/').then(({ data }) => setUsers(data.results || data)).catch(() => {})
-  }
-
-  useEffect(load, [])
+  const { data, loading, error: loadError, load } = useAdminData('/auth/users/')
+  const users = (data || []).filter((u) => (!role || u.role === role) && `${u.full_name || ''} ${u.username}`.toLowerCase().includes(search.trim().toLowerCase()))
+  const active = [search && `Search: ${search}`, role && `Role: ${role === 'super_admin' ? 'Super Admin' : 'Admin'}`].filter(Boolean)
+  const clear = () => { setSearch(''); setRole('') }
 
   const submit = async (e) => {
     e.preventDefault()
@@ -45,60 +48,18 @@ export default function Users() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl font-bold text-navy-900">Users</h2>
-          <p className="text-sm text-navy-600">
-            Create and manage admin accounts. Only super admins can do this.
-          </p>
-        </div>
-        <button className={btnGold} onClick={() => setShowForm(true)}>
-          + Create Admin
-        </button>
-      </div>
-
-      <div className="overflow-x-auto rounded-2xl border border-navy-100 bg-white shadow-sm">
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-navy-100 bg-navy-50/60 text-[11px] tracking-wider text-navy-600 uppercase">
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Username</th>
-              <th className="px-4 py-3">Role</th>
-              <th className="px-4 py-3">Joined</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id} className="border-b border-navy-50 last:border-0">
-                <td className="px-4 py-3.5 font-semibold text-navy-900">
-                  {u.full_name || '—'}
-                  {u.id === me?.id && <span className="ml-2 text-xs font-normal text-gold-600">(you)</span>}
-                </td>
-                <td className="px-4 py-3.5 text-navy-700">{u.username}</td>
-                <td className="px-4 py-3.5">
-                  <StatusBadge
-                    status={u.role === 'super_admin' ? 'completed' : 'confirmed'}
-                    label={u.role === 'super_admin' ? 'Super Admin' : 'Admin'}
-                  />
-                </td>
-                <td className="px-4 py-3.5 text-navy-600">
-                  {new Date(u.date_joined).toLocaleDateString('en-PH')}
-                </td>
-                <td className="px-4 py-3.5 text-right">
-                  <button
-                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-500 transition hover:bg-red-50 disabled:opacity-40"
-                    disabled={u.id === me?.id}
-                    onClick={() => remove(u)}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <AdminPageHeader title="Users" description="Create and manage admin accounts. Only super admins can do this." action={<Button variant="conversion" onClick={() => setShowForm(true)}><Plus size={18} aria-hidden="true" />Create Admin</Button>} />
+      <AdminFilters search={search} onSearch={setSearch} searchLabel="Search users" searchHint="Search names and usernames in the loaded records." active={active} onClear={clear}>
+        <SelectField label="Role" value={role} onChange={(e) => setRole(e.target.value)}><option value="">All roles</option><option value="admin">Admin</option><option value="super_admin">Super Admin</option></SelectField>
+      </AdminFilters>
+      <AdminListState name="Users" loading={loading} error={loadError} count={users.length} filtered={active.length > 0} onRetry={load} onClear={clear}>
+        <AdminListing name="Users" records={users} columns={[
+          { key: 'name', label: 'Name', render: (u) => <>{u.full_name || '—'}{u.id === me?.id && <span className="admin-secondary">You</span>}</> },
+          { key: 'username', label: 'Username', render: (u) => u.username },
+          { key: 'role', label: 'Role', render: (u) => <StatusBadge status={u.role === 'super_admin' ? 'completed' : 'confirmed'} label={u.role === 'super_admin' ? 'Super Admin' : 'Admin'} /> },
+          { key: 'joined', label: 'Joined', render: (u) => new Date(u.date_joined).toLocaleDateString('en-PH') },
+        ]} actions={(u) => <Button variant="danger" aria-label={`Delete admin ${u.username}`} disabled={u.id === me?.id} onClick={() => remove(u)}><Trash2 size={16} aria-hidden="true" />Delete</Button>} />
+      </AdminListState>
 
       {showForm && (
         <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-navy-950/60 p-4 backdrop-blur-sm sm:p-8">
@@ -106,9 +67,7 @@ export default function Users() {
             <div className="flex items-center justify-between rounded-t-3xl border-b border-navy-100 bg-white px-6 py-4">
               <h3 className="font-display text-lg font-bold text-navy-900">Create Admin</h3>
               <button onClick={() => setShowForm(false)} className="text-navy-500 hover:text-navy-900" aria-label="Close">
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X size={24} aria-hidden="true" />
               </button>
             </div>
             <form onSubmit={submit} className="space-y-4 p-6">
